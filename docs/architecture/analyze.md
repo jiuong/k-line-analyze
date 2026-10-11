@@ -5,7 +5,7 @@
 | Module | Analyze |
 | Requirement | [FR-2](../requirements.md#fr-2-price-action-analysis-composable-functions) |
 | Specification | [`../specification/analyze.md`](../specification/analyze.md) |
-| Status | Scaffolding done — types + `fillSummary` + `src/analyze/` entry; concrete analyzers deferred |
+| Status | `classifyReversalSignal` and `classifySwingTrend` implemented; swing pivot helper still deferred |
 
 ---
 
@@ -90,8 +90,8 @@ Contract detail (fields, naming, errors): [specification § Shared contract](../
 |----------------|------|----------------|--------|
 | Analysis types | [`src/types/analysis.ts`](../../src/types/analysis.ts) | `AnalysisResult`, `AnalyzeResult`, `Level`, `LevelName`, `AnalysisLabel` | done (`scaffold-types`; shape updated by `reshape-analysis-result`) |
 | Bar types | [`src/types/bars.ts`](../../src/types/bars.ts) | MT5-aligned `Bar` (analyzer input) | done |
-| Analyze module skeleton | [`src/analyze/index.ts`](../../src/analyze/index.ts) | `AnalyzerFn` + re-exports; no concrete fn yet | done (`scaffold-analyze-module`) |
-| Analyzers | `src/analyze/<functionId>.ts` | Pure PA functions | deferred (separate function tasks) |
+| Analyze module skeleton | [`src/analyze/index.ts`](../../src/analyze/index.ts) | `AnalyzerFn` + re-exports | done (`scaffold-analyze-module`) |
+| Analyzers | `src/analyze/<functionId>.ts` | Pure PA functions | `classifyReversalSignal` and `classifySwingTrend` done |
 | Time utils | [`src/utils/time.ts`](../../src/utils/time.ts) | Unix ↔ `TimeString` for `results[].levels` / `results[].range` | done |
 | Summary helper | [`src/utils/summary.ts`](../../src/utils/summary.ts) | `fillSummary(template, vars)` | done (`util-fill-summary`) |
 | Swing helper | `src/utils/swings.ts` *(planned)* | Shared pivot / swing detection | deferred (`util-swings`) |
@@ -126,7 +126,7 @@ flowchart TB
   skill -.->|"generates"| fns
 ```
 
-Seed function index: [specification § Per-function specs](../specification/analyze.md#per-function-specs-index-only) (`classifySwingTrend` — spec only).
+Function index: [specification § Per-function specs](../specification/analyze.md#per-function-specs-index-only) (`classifyReversalSignal` and `classifySwingTrend` implemented).
 
 ---
 
@@ -222,7 +222,7 @@ Mapped from [specification Acceptance (B1–B4)](../specification/analyze.md#acc
 
 | Risk / debt | Impact | Mitigation |
 |-------------|--------|------------|
-| Swing helper + seed impl deferred | Seed not demonstrable in code yet | Later tasks: `util-swings`, `impl-classify-swing-trend` |
+| Swing pivot helper still deferred | No shared `src/utils/swings.ts` yet | Open `util-swings` only when a function needs pivots. `classifySwingTrend` uses reversal K2 nodes instead |
 | Label/level sprawl without sync | Breaking or ambiguous consumers | Enforce same-change updates to skill + `src/types` + `docs/spec` |
 | Caller forgets instrument context | Chart/UI must carry `symbol` / `timeframe` separately | Documented boundary in Data + Analyze + Chart specs |
 
@@ -249,6 +249,7 @@ Mapped from [specification Acceptance (B1–B4)](../specification/analyze.md#acc
 - Module specification: [`../specification/analyze.md`](../specification/analyze.md)
 - Data architecture (bar loading): [`data.md`](data.md)
 - Seed function spec: [`../spec/classify-swing-trend.md`](../spec/classify-swing-trend.md)
+- Reversal function spec: [`../spec/classify-reversal-signal.md`](../spec/classify-reversal-signal.md)
 - Tasks: [`../project-tasks.md`](../project-tasks.md) (FR-2 this phase scaffolding: done)
 - Skill: [`.cursor/skills/kline-analyze-fn/SKILL.md`](../../.cursor/skills/kline-analyze-fn/SKILL.md)
 - Types contract: [`.cursor/skills/kline-analyze-fn/references/types-contract.md`](../../.cursor/skills/kline-analyze-fn/references/types-contract.md)

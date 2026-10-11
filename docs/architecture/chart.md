@@ -5,7 +5,7 @@
 | Module | Chart |
 | Requirement | [FR-3](../requirements.md#fr-3-chart-render--annotation-third-party-library) |
 | Specification | [`../specification/chart.md`](../specification/chart.md) |
-| Status | Planned — library chosen (`@trading-playback/kline-chart`); adapter tasks: `chart-dep-kline-chart` … `chart-adapter-host` |
+| Status | Adapter and review page in place (`src/chart/`, `web/`, `GET /api/bars`) |
 
 ---
 
@@ -86,9 +86,9 @@ API, lifecycle, and field mapping: [module specification](../specification/chart
 1. **Single import boundary** — Only code under `src/chart/` (planned) imports `@trading-playback/kline-chart`. Facades: `KlineChart` or `defaultKlineChart`.
 2. **Map then paint** — Convert query-window `Bar[]` + caller `timeframe` to `KlineBar[]`, then `setBars`. Optionally `setTimeViewport` for the same window.
 3. **Overlay, not markers** — Register one (or few) `HostChildRenderer`s on `layer_drawings`. Draw each `Level` in `results[].levels` with `timeToX` / `priceToY`; optional range band and name/summary text.
-4. **Time at the edge** — Convert Unix seconds and UTC `TimeString` to `+08:00` before `setBars`, `setTimeViewport`, and `timeToX`. Do not pass raw Unix or `…Z` into the library.
+4. **Time at the edge** — Convert Unix seconds and UTC `TimeString` to `+08:00` before `setBars`, `setTimeViewport`, and `timeToX`. Do not pass raw Unix or `…Z` into the library. After `setBars`, fit bar layout (`fitBarLayoutFromBars`); the library leaves slot width at 0, which stacks every candle on one x.
 5. **Refresh without playback** — New bars → `setBars` again. Overlay-only changes → update renderer inputs and `requestRedraw()`. Never drive `setPlaybackStatus`.
-6. **Host owns interaction** — Pan, zoom, and pointer listeners stay outside the adapter unless a later host task needs `canvasPointFromClient` / `hitTest`.
+6. **Chart library owns interaction** — Pan, zoom, crosshair, and minimum slot width live in `@trading-playback/kline-chart`. The default host calls `attachPointerInteraction` so the library binds pointer and wheel. This repo does not implement gesture math.
 
 Contract detail: [specification § Integration boundary](../specification/chart.md#integration-boundary), [§ Overlay mapping](../specification/chart.md#overlay-mapping).
 
@@ -98,11 +98,14 @@ Contract detail: [specification § Integration boundary](../specification/chart.
 
 | Building block | Path | Responsibility | Status |
 |----------------|------|----------------|--------|
-| Chart adapter entry | `src/chart/` *(planned)* | `mount` / `unmount`, wire facade, expose a small host API | todo (`chart-adapter-host`) |
-| Bar mapper | under `src/chart/` *(planned)* | `Bar[]` + `TimeFrame` → `KlineBar[]` (`+08:00`) | todo (`chart-map-bars-to-kline`) |
-| Overlay renderer | under `src/chart/` *(planned)* | `AnalysisResult[]` → `layer_drawings` paint / optional hitTest | todo (`chart-overlay-analysis`) |
-| Chart time helper | under `src/chart/` or extend `src/utils/time.ts` *(planned)* | UTC Unix / `TimeString` → East-8 ISO for the library | todo (`chart-util-east8-time`) |
-| Package dependency | `package.json` *(planned)* | `file:` link to `@trading-playback/kline-chart` | todo (`chart-dep-kline-chart`) |
+| Chart adapter entry | [`src/chart/host.ts`](../../src/chart/host.ts) | `mount` / `unmount`, `setBars`, `setResults` | done |
+| Bar mapper | [`src/chart/mapBars.ts`](../../src/chart/mapBars.ts) | `Bar[]` + `TimeFrame` → `KlineBar[]` (`+08:00`) | done |
+| Overlay renderer | [`src/chart/overlayAnalysis.ts`](../../src/chart/overlayAnalysis.ts) | `AnalysisResult[]` → `layer_drawings` | done |
+| Chart time helper | [`src/utils/time.ts`](../../src/utils/time.ts) `toEast8TimeString` | UTC Unix / `TimeString` → East-8 ISO | done |
+| Package dependency | [`package.json`](../../package.json) | `file:` to kline-chart and shared (`overrides` for `workspace:*`) | done |
+| Review page | [`web/`](../../web/) | Form, canvas, sidebar | done |
+| Bars dev API | [`src/page/barsHandler.ts`](../../src/page/barsHandler.ts) | `GET /api/bars` → `loadBarsWithMeta` | done |
+| Catalog dev API | [`src/page/catalogMiddleware.ts`](../../src/page/catalogMiddleware.ts) | `GET /api/catalog` → sibling `trading.json` | done |
 | Bar types | [`src/types/bars.ts`](../../src/types/bars.ts) | Input `Bar`, `TimeFrame` | done |
 | Analysis types | [`src/types/analysis.ts`](../../src/types/analysis.ts) | `AnalysisResult`, `LevelName`, … | done (`scaffold-types`) |
 | Third-party lib | `@trading-playback/kline-chart` | Candles, axes, crosshair, coordinates, overlay slots | external |
@@ -113,7 +116,7 @@ flowchart TB
     caller[Caller_orchestration]
     hostPage[Host_page_canvas]
   end
-  subgraph chartModule [Chart_module_planned]
+  subgraph chartModule [Chart_module]
     adapter[chart_adapter]
     mapper[bar_mapper]
     overlay[overlay_renderer]
@@ -206,7 +209,8 @@ Host lifecycle steps and optional appearance APIs: [specification § Host lifecy
 | Topic | Detail |
 |-------|--------|
 | Runtime | Browser (or any host with DOM canvas); library is not React-bound |
-| Package install | `file:` to local `trading-playback/packages/kline-chart` (`chart-dep-kline-chart`) |
+| Package install | `file:../trading-playback/packages/kline-chart` and `file:../trading-playback/packages/shared` (`overrides` replaces the chart package’s `workspace:*`) |
+| Dev page | `npm run dev` → `http://127.0.0.1:5173`. Uses `.env` `MT5_BASE_URL` when the process env is unset; otherwise `http://127.0.0.1:8000/api/v1` |
 | Config | Optional `setConfig` / `setThemeColors` / `setPriceTickSize`; not required for C1–C4 |
 | Env secrets | None specific to Chart; bars still come from Data / caller |
 | Unit / adapter tests | Fixture `Bar[]` + fixed `AnalysisResult`; assert mapping and overlay inputs; no live MT5 |
@@ -226,7 +230,7 @@ Host lifecycle steps and optional appearance APIs: [specification § Host lifecy
 | Refresh model | Replace candles with `setBars`; overlay-only → `requestRedraw` |
 | Playback | Explicitly out of scope |
 | Dependency direction | Caller → Chart → library; Analyze never depends on Chart |
-| Interaction | Host listens for pointer / wheel; library provides coordinates / hitTest when needed |
+| Interaction | `attachPointerInteraction` lets the chart library bind pan, zoom, and crosshair. This repo does not implement those gestures |
 
 ---
 
@@ -260,11 +264,11 @@ Mapped from [specification Acceptance (C1–C4)](../specification/chart.md#accep
 
 | Risk / debt | Impact | Mitigation |
 |-------------|--------|------------|
-| Local `file:` dep may break on other machines | CI / clones need the sibling package path | Document path in `chart-dep-kline-chart`; switch to publish later if needed |
+| Local `file:` dep may break on other machines | CI / clones need the sibling `trading-playback` packages built (`dist/`) | Documented install path; `shared` is a second `file:` because the chart package uses `workspace:*` |
 | East-8 conversion bugs | Misaligned markers vs candles | Shared chart time helper + tests against known bar opens |
 | `toTimeString` is UTC-only today | Easy to pass `…Z` into the library by mistake | Do not reuse UTC helper as library input; document in adapter |
-| Analysis types not in `src/types` yet | Overlay typing blocked / drift | `scaffold-types` before or with chart adapter |
-| Host interaction deferred | Pan/zoom/hit-test may feel incomplete | Explicitly out of C1–C4; add host task later if needed |
+| Analysis types not in `src/types` yet | Overlay typing blocked / drift | Resolved: `src/types/analysis.ts` |
+| Library interaction | Pan, zoom, and crosshair depend on `attachPointerInteraction` | Default host calls it after `mount`; gesture math stays in the chart package |
 | Upstream library API drift | Adapter breaks on package upgrades | Pin version; link 接入说明; retest mapping on bump |
 
 ---
@@ -291,6 +295,6 @@ Mapped from [specification Acceptance (C1–C4)](../specification/chart.md#accep
 - Module specification: [`../specification/chart.md`](../specification/chart.md)
 - Analyze architecture: [`analyze.md`](analyze.md)
 - Data architecture: [`data.md`](data.md)
-- Tasks: [`../project-tasks.md`](../project-tasks.md) (`chart-dep-kline-chart`, `chart-util-east8-time`, `chart-map-bars-to-kline`, `chart-overlay-analysis`, `chart-adapter-host`)
+- Tasks: [`../project-tasks.md`](../project-tasks.md) (`chart-dep-kline-chart` … `page-review-host`)
 - Upstream host guide: `D:\code\trading-playback\packages\kline-chart\docs\接入说明.md`
 - Architecture index: [`README.md`](README.md)

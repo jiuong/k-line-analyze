@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>K-line review</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <form id="query">
+        <label>Symbol <select id="symbol" name="symbol" required></select></label>
+        <label>Timeframe <select id="timeframe" name="timeframe"></select></label>
+        <label>From <input id="from" name="from" type="datetime-local" /></label>
+        <label>To <input id="to" name="to" type="datetime-local" /></label>
+        <label>Count <input id="count" name="count" inputmode="numeric" placeholder="optional" /></label>
+        <label class="check"><input id="refresh" name="refresh" type="checkbox" /> Refresh</label>
+        <button type="submit">Load</button>
+        <p id="status" role="status"></p>
+      </form>
+    </header>
+    <main>
+      <div id="chart-host"><canvas id="chart"></canvas></div>
+      <aside id="summary">
+        <section id="analyzers"></section>
+        <div id="analysis-output"></div>
+      </aside>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

@@ -4,7 +4,7 @@
 
 Use this as the pattern when the user says:
 
-> Identify whether a segment is an uptrend (Higher High + Higher Low) or a downtrend (Lower High + Lower Low).
+> Split the window into trend segments using reversal K2 nodes. A bull reversal opens a bull trend; a bear reversal opens a bear trend. The last segment ends on the last bar.
 
 ## Minimal capture
 
@@ -12,12 +12,13 @@ Use this as the pattern when the user says:
 |-------|-------|
 | `functionId` | `classifySwingTrend` |
 | Spec path | `docs/spec/classify-swing-trend.md` |
-| Labels | `bull_trend` \| `bear_trend` \| `trading_range` \| `unclear` |
-| Levels | `H1` `H2` `L1` `L2` |
-| Deps | `fetchBars`, swing helper, time utils |
+| Input | `Bar[]` |
+| Labels | `bull_trend` \| `bear_trend` \| `unclear` |
+| Levels | `H1` `L1` (segment endpoints) |
+| Deps | `classifyReversalSignal`, time utils, `fillSummary` (caller supplies bars) |
 
 ## Agent reminder
 
 1. Write/update `docs/spec/classify-swing-trend.md` first if intent changes.
-2. Do not implement until scaffolding deps exist (or create them in the same task if the user asked for implementation).
+2. Do not reimplement the reversal scan; call `classifyReversalSignal`.
 3. Follow [generation-checklist.md](../references/generation-checklist.md).

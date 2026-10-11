@@ -1,11 +1,14 @@
 /**
  * Analyze module — public analyzers live as `src/analyze/<functionId>.ts`.
- * No concrete analyzers in this scaffold; add via skill `kline-analyze-fn`.
+ * Add new functions via skill `kline-analyze-fn`.
  *
  * Import chart packages only from `src/chart/` — never here.
  */
 import type { Bar } from "../types/bars.js";
 import type { AnalysisResult } from "../types/analysis.js";
+
+export { classifyReversalSignal } from "./classifyReversalSignal.js";
+export { classifySwingTrend } from "./classifySwingTrend.js";
 
 export type {
   AnalysisLabel,

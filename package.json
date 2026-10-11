@@ -1,0 +1,30 @@
+{
+  "name": "k-line-analyze",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.web.json --noEmit",
+    "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "pull-bars": "tsx scripts/pull-bars.ts"
+  },
+  "dependencies": {
+    "@trading-playback/kline-chart": "file:../trading-playback/packages/kline-chart",
+    "@trading-playback/shared": "file:../trading-playback/packages/shared"
+  },
+  "overrides": {
+    "@trading-playback/shared": "file:../trading-playback/packages/shared"
+  },
+  "devDependencies": {
+    "vite": "^7.3.7",
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}

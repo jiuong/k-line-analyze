@@ -4,7 +4,11 @@ Authoritative function spec. Skill mirror: `.cursor/skills/kline-analyze-fn/exam
 
 ## Intent
 
-Identify whether a price segment is an **uptrend** (Higher High + Higher Low) or a **downtrend** (Lower High + Lower Low). If neither structure is clear, report a trading range or unclear state.
+Split a caller-supplied `Bar[]` into one or more trend segments using reversal signals from `classifyReversalSignal`.
+
+Each kept reversal opens a segment. A `bull_reversal` opens a `bull_trend`. A `bear_reversal` opens a `bear_trend`. Direction comes from that opening signal, not from a higher-high / lower-low price compare.
+
+The segment runs from that signal’s `K2` through the next opposite signal’s `K2` (both bars included). The last segment has no closing reversal, so it runs through the last input bar (that bar included).
 
 ## Identity
 
@@ -12,106 +16,123 @@ Identify whether a price segment is an **uptrend** (Higher High + Higher Low) or
 |-------|-------|
 | `functionId` | `classifySwingTrend` |
 | Export | `classifySwingTrend` |
-| Impl path (planned) | `src/analyze/classifySwingTrend.ts` |
-| Tests (planned) | `tests/analyze/classifySwingTrend.test.ts` |
-| Status | **spec only** — not implemented yet |
+| Impl path | `src/analyze/classifySwingTrend.ts` |
+| Tests | `tests/analyze/classifySwingTrend.test.ts` |
+| Status | **implemented** |
 
 ## Parameters
 
 ```ts
 function classifySwingTrend(
   bars: Bar[],
-  options?: {
-    /** Half-window for pivot detection; default TBD at implementation (e.g. 2 or 3) */
-    swingStrength?: number;
-  }
-): AnalysisResult<SwingTrendEvidence>;
+): AnalysisResult<Record<string, never>>;
 ```
 
-`Bar` matches MT5 `/bars` `data[]` ([`src/types/bars.ts`](../../src/types/bars.ts)).
+`Bar` matches MT5 `/bars` `data[]` ([`src/types/bars.ts`](../../src/types/bars.ts)). No `options`.
 
 | Param | Required | Notes |
 |-------|----------|-------|
-| `bars` | yes | Caller-supplied OHLC array |
-| `options.swingStrength` | no | Pivot sensitivity |
+| `bars` | yes | Caller-supplied OHLC array. Non-array or length 0 throws `TypeError` |
 
 ## Dependencies
 
 | Dep | Status | Notes |
 |-----|--------|-------|
-| Caller-supplied `Bar[]` | **exists** | Via `fetchBars` / fixtures outside this function |
-| time utils | **partial** | Unix ↔ `TimeString` for `results[].levels` / `results[].range` |
-| swing / pivot helper | **must create** | Shared `src/utils/swings.ts` |
-| `AnalysisResult` types | **must create** | See skill `references/types-contract.md` |
+| Caller-supplied `Bar[]` | **exists** | Loaded outside this function |
+| `classifyReversalSignal` | **exists** | [`classifyReversalSignal.ts`](../../src/analyze/classifyReversalSignal.ts). Same-direction runs are already collapsed to the later signal |
+| `toTimeString` | **exists** | `src/utils/time.ts` — open tail endpoint time |
+| `fillSummary` | **exists** | `src/utils/summary.ts` |
+| `AnalysisResult` types | **exists** | `bull_trend` / `bear_trend` / `unclear`; levels `H1` / `L1` |
 
-## Algorithm (implementation guide)
+This function does not detect pivots. `src/utils/swings.ts` is not a dependency.
 
-1. Validate `bars`; resolve `swingStrength` (default TBD at implementation).
-2. Detect swing highs and swing lows using `swingStrength` (local extrema).
-3. Take the last two swing highs (`H1` older, `H2` newer) and last two swing lows (`L1` older, `L2` newer) — **confirm ordering in code comments to match this spec**.
-4. Classify:
-   - `bull_trend` if `H2.price > H1.price` **and** `L2.price > L1.price`
-   - `bear_trend` if `H2.price < H1.price` **and** `L2.price < L1.price`
-   - `trading_range` if both pairs exist but neither HH+HL nor LH+LL
-   - `unclear` if fewer than two swing highs or two swing lows
-5. Emit one `AnalyzeResult`. Fill its `levels` with `{ name, price, time }` for those four swings when present (`H*` → swing high, `L*` → swing low). Omit missing levels when `unclear`.
-6. Set that item’s `range.start` / `range.end` to the earliest and latest of the used swing bar times (or full input window if `unclear` — prefer documenting chosen rule in the PR; default: used swings only when classified, else first/last bar times).
-7. Set `evidence.swingStrength` to the resolved pivot half-window actually used; build `summary` from the template below; `confidence = 1`.
+## Algorithm
+
+1. Throw `TypeError` when `bars` is not an array or `bars.length === 0`.
+2. Call `classifyReversalSignal(bars)`. Keep items whose `name` is `bull_reversal` or `bear_reversal`, in that order. Drop `unclear` / `no_reversal`.
+3. When none remain, return one `AnalyzeResult` with `name: "unclear"`, `levels: []`, and `range` from the first bar’s open time to the last bar’s open time. Do not throw. Bars before the first `K2` are not a segment.
+4. Otherwise each kept signal `Si` (`i` from 0 through `n`) is one segment:
+   - **Name.** `bull_reversal` → `bull_trend`. `bear_reversal` → `bear_trend`.
+   - **Start.** That signal’s `K2` (`time` and `price` copied). A missing `K2` throws (upstream invariant).
+   - **End when `i < n`.** `S(i+1)`’s `K2`, copied the same way. Both `K2` bars are inside the segment. That `K2` is also the next segment’s start, so adjacent `range` values meet on it.
+   - **End when `i = n`.** The last input bar. `range.end` is that bar’s open time. Bull price is its `high` (`H1`). Bear price is its `low` (`L1`). This point is not a reversal `K2`. Emit the segment even when the opening `K2` is already the last bar (`range.start` equals `range.end`).
+5. `n + 1` reversals produce `n + 1` segments. One reversal is one open segment from its `K2` to the last bar, not `unclear`.
+6. The opening signal’s `K1` is outside the segment. A closed segment’s confirm bar is outside that segment (it falls in the next segment unless that bar is the next `K2`).
+7. Because `classifyReversalSignal` keeps only the later signal of a same-direction run, a run such as bull, bull, bear starts at the later bull’s `K2`.
+8. Build `summary` from the template below. `confidence` is `1`. `evidence` is `{}`.
+
+Segment order follows the reversal scan. Callers should pass bars in time order, the same assumption as `classifyReversalSignal`.
 
 ## Labels
 
 | `results[].name` | Condition |
-|---------|-----------|
-| `bull_trend` | HH + HL |
-| `bear_trend` | LH + LL |
-| `trading_range` | Two highs + two lows, mixed structure |
-| `unclear` | Insufficient swings |
+|------------------|-----------|
+| `bull_trend` | Opened by a `bull_reversal` |
+| `bear_trend` | Opened by a `bear_reversal` |
+| `unclear` | No reversal in the window |
+
+`trading_range` is not emitted. Several segments produce several `results` items, in scan order.
 
 ## Levels
 
-Shape: `Level[]` (`{ name: LevelName; price: number; time: TimeString }`).
+Shape: `Level[]` (`{ name, price, time }`). Two entries, chronological. Names are unique inside one item. `time` is the bar open via `toTimeString` (already stored on a copied `K2`).
 
-| LevelName | Meaning | `price` |
-|-----------|---------|---------|
-| `H1` | Earlier swing high | bar high |
-| `H2` | Later swing high | bar high |
-| `L1` | Earlier swing low | bar low |
-| `L2` | Later swing low | bar low |
+| Segment | First level | Second level |
+|---------|-------------|--------------|
+| `bull_trend` | `L1` = opening `K2` | `H1` = closing `K2`, or last bar `high` when open |
+| `bear_trend` | `H1` = opening `K2` | `L1` = closing `K2`, or last bar `low` when open |
+
+`unclear` uses `levels: []`.
+
+`range.start` is the opening `K2` time. `range.end` is the closing `K2` time, or the last bar’s open time when the segment is open. For `unclear`, `range` spans the first bar through the last bar.
 
 ## Summary template
 
 ```text
-structure={label}; H1@{H1} H2@{H2} L1@{L1} L2@{L2}
+trends={count}; last={lastName} from={from} to={to}
 ```
 
-Placeholders: `{H1}`…`{L2}` use each level’s `time`; missing levels render as `-`.
+| Placeholder | Source |
+|-------------|--------|
+| `{count}` | Number of trend items (0 when the only item is `unclear`) |
+| `{lastName}` | `name` of the last `results` item |
+| `{from}` | Last segment’s opening `K2` time; `-` when that item has no levels |
+| `{to}` | Last segment’s end time (closing `K2` or last bar); `-` when that item has no levels |
 
-Example:
+Examples:
 
 ```text
-structure=bull_trend; H1@2024-01-02T10:00:00Z H2@2024-01-03T14:00:00Z L1@2024-01-02T06:00:00Z L2@2024-01-03T08:00:00Z
+trends=1; last=bull_trend from=2023-11-14T22:14:20Z to=2023-11-14T22:16:20Z
+trends=0; last=unclear from=- to=-
 ```
 
 ## Evidence
 
-Geometry lives in `results[].levels` / `results[].name`. `evidence` only carries the resolved param that cannot be derived from them:
-
 ```ts
-type SwingTrendEvidence = {
-  /** Resolved pivot half-window actually used (after defaulting) */
-  swingStrength: number;
-};
+type SwingTrendEvidence = Record<string, never>;
 ```
 
-Always set `evidence.swingStrength`, including when `results[].name` is `unclear`.
+Always `{}`. Geometry and classification live in `results`.
+
+## Errors
+
+| Case | Behavior |
+|------|----------|
+| `bars` is not an array, or `bars.length === 0` | Throw `TypeError` |
+| 1–2 bars, or no confirmed reversal | `unclear`, do not throw |
+| Reversal item missing `K2` | Throw `Error` |
 
 ## Test outline
 
 | Case | Fixture idea | Expect |
 |------|--------------|--------|
-| Bull | Rising highs and lows | `bull_trend`, four levels with prices, `evidence.swingStrength` |
-| Bear | Falling highs and lows | `bear_trend` |
-| Range | HH but lower low (or LH + HL) | `trading_range` |
-| Unclear | Flat / too few pivots | `unclear`, sparse levels, `evidence.swingStrength` still set |
+| Bull | One bull reversal, bars after its `K2` | One `bull_trend`; `L1` is that `K2`; `H1` is the last bar’s high |
+| Bear | One bear reversal | One `bear_trend`; `H1` is that `K2`; `L1` is the last bar’s low |
+| Same-direction run | Two bull pairs then no opposite | One `bull_trend` starting at the later `K2` |
+| Three reversals | Bull, bear, bull, with bars after the last `K2` | Two closed segments plus one open segment; adjacent ranges share the middle `K2` |
+| No reversal | Doji / no confirmed pair | `unclear`, empty levels |
+| Short | 1 or 2 bars | `unclear`, range covers the window |
+| Invalid | Non-array, empty array | `TypeError` |
+| Contract | Any success path | `confidence === 1`, `evidence` is `{}`, summary matches the template |
 
-Inject synthetic `Bar[]` directly; do not hit live MT5 in unit tests.
+Inject synthetic `Bar[]`. Do not call MT5.

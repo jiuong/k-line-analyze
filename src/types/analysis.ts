@@ -14,7 +14,10 @@ export type LevelName =
   | "Top1"
   | "Top2"
   | "Bottom1"
-  | "Bottom2";
+  | "Bottom2"
+  | "K1"
+  | "K2"
+  | "Confirm";
 
 /**
  * One named geometric anchor.
@@ -35,7 +38,10 @@ export type AnalysisLabel =
   | "bull_trend"
   | "bear_trend"
   | "trading_range"
-  | "unclear";
+  | "unclear"
+  | "bull_reversal"
+  | "bear_reversal"
+  | "no_reversal";
 
 /** One detected structure inside an analyzer output. */
 export type AnalyzeResult = {

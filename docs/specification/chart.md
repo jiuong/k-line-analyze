@@ -18,8 +18,8 @@ Display is **static** (one `setBars`) or **live-updated** (call `setBars` again 
 | Package | `@trading-playback/kline-chart` |
 | Runtime | Pure TypeScript / JavaScript. No React. Host supplies the page and an `HTMLCanvasElement` |
 | Entry | Facade `KlineChart`, or the exported singleton `defaultKlineChart` |
-| Install | `file:` to local `trading-playback/packages/kline-chart` (`chart-dep-kline-chart`). Do not use `workspace:*` |
-| Import site | Only the chart adapter (path TBD, e.g. `src/chart/`) |
+| Install | `file:../trading-playback/packages/kline-chart` plus `@trading-playback/shared` (`file:` + npm `overrides`, because the chart package depends on `workspace:*`) |
+| Import site | Only `src/chart/` |
 
 ## Responsibilities & non-goals
 
@@ -32,7 +32,7 @@ Display is **static** (one `setBars`) or **live-updated** (call `setBars` again 
 | Convert UTC times to East-8 ISO-8601 before chart calls | Full trading terminal / order UI |
 | Keep analyzers free of chart imports | Embedding chart deps inside `src/analyze` |
 
-Pointer, wheel, pan, and zoom stay with the **host**. The library does not bind those listeners. Hit-testing is available (`canvasPointFromClient` + `hitTest`) but is not required for the static / live-update acceptance below.
+Pan, zoom, crosshair, and minimum candle size belong in `@trading-playback/kline-chart`. The default host calls `attachPointerInteraction` after `mount`. This repo does not implement those gestures. Hit-testing (`canvasPointFromClient` + `hitTest`) stays available for overlays.
 
 ## Integration boundary
 
@@ -151,12 +151,14 @@ Pointer hits, when the host implements them: `canvasPointFromClient(canvas, clie
 
 | Piece | Notes |
 |-------|-------|
-| Adapter module | e.g. `src/chart/` — only place that imports `@trading-playback/kline-chart` |
+| Adapter module | [`src/chart/`](../../src/chart/) — only place that imports `@trading-playback/kline-chart` |
 | Analyze package | Importable with **zero** chart dependencies |
+| Review page | [`web/`](../../web/) Vite canvas. `npm run dev` on `127.0.0.1:5173` |
+| Bars for the page | Dev `GET /api/bars` → [`loadBarsWithMeta`](../../src/data/loadBars.ts). Browser does not read the store |
 
 ## Behaviors
 
-1. The candles on screen are the mapped query-window bars (same OHLC; times shown as `+08:00`).
+1. The candles on screen are the mapped query-window bars (same OHLC; times shown as `+08:00`). The adapter fits bar layout after `setBars` so those candles span the plot.
 2. A later refresh replaces those candles by calling `setBars` again. No playback state machine.
 3. Drawn level marks correspond 1:1 with `results[].levels` entries on the result(s).
 4. Analyzers never import the chart package.
@@ -165,8 +167,9 @@ Pointer hits, when the host implements them: `canvasPointFromClient(canvas, clie
 
 | Piece | 现状 | Notes |
 |-------|------|-------|
-| Library choice | decided | `@trading-playback/kline-chart`; install via `file:` (`chart-dep-kline-chart`) |
-| Adapter (`setBars` + `layer_drawings`) | todo | `chart-dep-kline-chart` → … → `chart-adapter-host` |
+| Library choice | done | `@trading-playback/kline-chart` via `file:`; `@trading-playback/shared` via `file:` + `overrides` |
+| Adapter (`setBars` + `layer_drawings`) | done | `src/chart/` — east8 time, bar map, overlay, host lifecycle |
+| Review page | done | `web/` + `GET /api/bars`; pan/zoom still out of scope |
 | Playback | out of scope | Do not call `setPlaybackStatus` |
 
 ## Acceptance (after library integration)
@@ -178,11 +181,24 @@ Pointer hits, when the host implements them: `canvasPointFromClient(canvas, clie
 | C3 | Analysis packages remain importable without chart dependencies |
 | C4 | Refreshing the window updates candles via `setBars` only; playback status is never set |
 
+Summary text and result names stay on the review-page sidebar. The overlay draws a translucent `range` band; level dots stay 1:1 with `results[].levels` and are labeled with `Level.name`.
+
+## Review page
+
+`npm run dev` serves [`web/`](../../web/) on `127.0.0.1:5173`.
+
+1. The form loads symbols and timeframes from `GET /api/catalog`, which reads `../trading-playback/config/trading.json`. Options submit `code` and show `label (code)`. The first entry of each list is selected. From / To are `datetime-local` values converted to UTC Unix seconds. Empty To means now. Optional `count` and `refresh` still go to `GET /api/bars`. A missing or invalid catalog shows the error and does not invent options.
+2. The dev middleware ([`src/page/barsMiddleware.ts`](../../src/page/barsMiddleware.ts)) calls [`loadBarsWithMeta`](../../src/data/loadBars.ts). It does not accept a file path. [`src/page/catalogMiddleware.ts`](../../src/page/catalogMiddleware.ts) only serves that fixed catalog file.
+3. Analysis is off until a sidebar checkbox is enabled. [`runReview`](../../src/page/reviewModel.ts) runs only the checked functions (`classifySwingTrend`, `classifyReversalSignal`). Toggling recomputes marks without another bars request.
+4. The adapter `mount`s once, calls `attachPointerInteraction` (library pan, zoom, and crosshair), then `setBars` / `setResults`. A later submit calls `setBars` again. Leaving the page calls `unmount()`, which drops the library listeners.
+5. The sidebar shows `source` (`local` or `mt5`, plus degraded). Summary and `results[].name` appear only for enabled analyzers.
+6. A failed response shows the error and leaves the previous candles in place. An empty successful window clears the chart.
+
 ## Related
 
 - Architecture: [`../architecture/chart.md`](../architecture/chart.md)
 - Requirements: [`../requirements.md`](../requirements.md) FR-3
 - Analyze shared contract: [`analyze.md`](analyze.md)
-- Tasks: [`../project-tasks.md`](../project-tasks.md) (`chart-dep-kline-chart`, `chart-util-east8-time`, `chart-map-bars-to-kline`, `chart-overlay-analysis`, `chart-adapter-host`)
+- Tasks: [`../project-tasks.md`](../project-tasks.md) (`chart-dep-kline-chart` … `chart-adapter-host`, `page-bars-api`, `page-review-host`)
 - Module index: [`README.md`](README.md)
 - Upstream host guide: `D:\code\trading-playback\packages\kline-chart\docs\接入说明.md`

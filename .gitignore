@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.log
+
+# Local MT5 bar dumps — pull via `npm run pull-bars`; do not commit
+testdata/bars/**
+!testdata/bars/.gitkeep

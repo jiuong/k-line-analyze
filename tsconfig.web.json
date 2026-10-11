@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": []
+  },
+  "include": [
+    "web/**/*.ts",
+    "src/chart/**/*.ts",
+    "src/page/reviewModel.ts",
+    "src/page/queryTime.ts",
+    "src/analyze/**/*.ts",
+    "src/types/**/*.ts",
+    "src/utils/**/*.ts"
+  ]
+}

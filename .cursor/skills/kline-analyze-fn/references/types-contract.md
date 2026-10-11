@@ -33,13 +33,15 @@ Point / swing / pattern anchors. Add names in specs when a function needs them; 
 | `L1` `L2` `L3` … | Swing lows |
 | `Top1` `Top2` | Double-top peaks |
 | `Bottom1` `Bottom2` | Double-bottom troughs |
+| `K1` `K2` `Confirm` | Reversal setup, extreme, and confirm bar (`classifyReversalSignal`; price depends on bull vs bear) |
 
 ```ts
 type LevelName =
   | "H1" | "H2" | "H3"
   | "L1" | "L2" | "L3"
   | "Top1" | "Top2"
-  | "Bottom1" | "Bottom2";
+  | "Bottom1" | "Bottom2"
+  | "K1" | "K2" | "Confirm";
   // extend as needed
 ```
 
@@ -59,17 +61,23 @@ Machine-readable primary classification. Prefer stable professional terms.
 
 | Label | Meaning |
 |-------|---------|
-| `bull_trend` | Higher High + Higher Low structure |
-| `bear_trend` | Lower High + Lower Low structure |
+| `bull_trend` | Segment opened by a `bull_reversal` `K2`, through the next opposite `K2` or the last bar (`classifySwingTrend`) |
+| `bear_trend` | Segment opened by a `bear_reversal` `K2`, through the next opposite `K2` or the last bar (`classifySwingTrend`) |
 | `trading_range` | Neither clear HH+HL nor LH+LL |
-| `unclear` | Insufficient swings / data |
+| `unclear` | Insufficient structure / data |
+| `bull_reversal` | Confirmed bull reversal (bearish K1, lower-low K2, later HH+HL) |
+| `bear_reversal` | Confirmed bear reversal (bullish K1, higher-high K2, later LH+LL) |
+| `no_reversal` | Enough bars to scan, no reversal confirmed |
 
 ```ts
 type AnalysisLabel =
   | "bull_trend"
   | "bear_trend"
   | "trading_range"
-  | "unclear";
+  | "unclear"
+  | "bull_reversal"
+  | "bear_reversal"
+  | "no_reversal";
   // extend per function (document in docs/spec + here)
 ```
 

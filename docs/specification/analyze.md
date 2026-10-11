@@ -139,13 +139,14 @@ Algorithm details are **not** duplicated here.
 
 | functionId | Spec | 现状 |
 |------------|------|------|
-| `classifySwingTrend` | [`../spec/classify-swing-trend.md`](../spec/classify-swing-trend.md) | spec only |
+| `classifySwingTrend` | [`../spec/classify-swing-trend.md`](../spec/classify-swing-trend.md) | implemented. Segments from `classifyReversalSignal` K2 nodes; last segment ends on the last bar. Empty `bars` throws `TypeError`. No reversal → `unclear` |
+| `classifyReversalSignal` | [`../spec/classify-reversal-signal.md`](../spec/classify-reversal-signal.md) | implemented. Empty `bars` throws `TypeError` (`range.start` needs a bar time). 1–2 bars → `unclear` |
 
 ## Public surface (code map)
 
 | Path | Status |
 |------|--------|
-| `src/analyze/*` skeleton | done (`scaffold-analyze-module`) — `index.ts` + `AnalyzerFn`; no concrete analyzers yet |
+| `src/analyze/*` skeleton | done (`scaffold-analyze-module`) — `index.ts` + `AnalyzerFn`; `classifyReversalSignal` and `classifySwingTrend` implemented |
 | `src/types` analysis enums / `AnalysisResult` | done (`scaffold-types`) — `src/types/analysis.ts` |
 | `src/utils/time.ts` | done |
 | `src/utils/summary.ts` | done (`util-fill-summary`) |
@@ -158,8 +159,10 @@ Algorithm details are **not** duplicated here.
 |-------|------|-------|
 | Types / shared `AnalysisResult` | done | `src/types/analysis.ts` |
 | Summary helper | done | `src/utils/summary.ts` (`fillSummary`) |
-| Analyze module skeleton | done | `src/analyze/index.ts`; no concrete analyzers |
-| Swing helper + `classifySwingTrend` | deferred | Separate analyzer function tasks later |
+| Analyze module skeleton | done | `src/analyze/index.ts`; `classifyReversalSignal` and `classifySwingTrend` exported |
+| `classifyReversalSignal` | done | `src/analyze/classifyReversalSignal.ts` |
+| `classifySwingTrend` | done | `src/analyze/classifySwingTrend.ts` — reversal K2 segments |
+| Swing helper | deferred | `util-swings`; not used by `classifySwingTrend` |
 
 ## Acceptance (from requirements)
 
