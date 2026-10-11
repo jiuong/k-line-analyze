@@ -6,7 +6,7 @@ Use before marking an analyzer task done.
 
 - [ ] `docs/spec/<functionId-kebab>.md` created or updated (authoritative)
 - [ ] Intent, params, algorithm steps, edges documented
-- [ ] `label` set and `LevelName`s listed
+- [ ] `results[].name` (`AnalysisLabel`) set and `LevelName`s listed
 - [ ] `summary` template + example fill documented
 - [ ] `evidence` draft fields documented (even if provisional)
 - [ ] Dependencies listed with exists / create / blocked
@@ -15,25 +15,24 @@ Use before marking an analyzer task done.
 
 - [ ] New `AnalysisLabel` / `LevelName` values added to [types-contract.md](types-contract.md) (and `src/types` if present)
 - [ ] Reused existing helpers; no duplicated swing/time/summary logic
-- [ ] No raw HTTP inside `src/analyze/*`
+- [ ] No raw HTTP / `fetchBars` inside `src/analyze/*`
 
 ## Data
 
-- [ ] Uses `fetchBars` with `symbol` + `timeframe` + `from`/`to` or `count`
-- [ ] Times converted correctly (Unix for MT5, `TimeString` in result)
-- [ ] Symbol alias / `%2B` handled in client, not ad hoc in analyzer
+- [ ] Public input is MT5-aligned `Bar[]` (+ optional `options`); loading is outside the analyzer
+- [ ] Times converted correctly (Unix on `Bar.time`, `TimeString` in `results[].levels` / `results[].range`)
 
 ## Implementation
 
-- [ ] Returns full `AnalysisResult` with `confidence: 1`
+- [ ] Returns full `AnalysisResult` with `confidence: 1` (no `symbol` / `timeframe` fields)
 - [ ] `summary` built only from the declared template
-- [ ] `levels` / `range` match algorithm description in spec
+- [ ] `results[].levels` / `range` match algorithm description in spec
 
 ## Tests
 
-- [ ] Unit tests with synthetic bars + mocked `fetchBars`
+- [ ] Unit tests with synthetic `Bar[]` injected directly
 - [ ] Cases: positive pattern, opposite pattern, range/unclear, insufficient data
-- [ ] Assertions on `label`, key `levels`, `summary`, `confidence`
+- [ ] Assertions on `results[].name`, key `levels`, `summary`, `confidence`
 
 ## Docs / tasks
 

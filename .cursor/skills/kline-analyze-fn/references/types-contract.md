@@ -1,6 +1,6 @@
 # Shared types contract
 
-Extensible enums and the unified analysis result. When scaffolding lands, mirror these in `src/types/analysis.ts` (or equivalent). When adding a value, update **this file**, `src/types`, and the function’s `docs/spec/`.
+Extensible enums and the unified analysis result. Mirrored in [`src/types/analysis.ts`](../../../../src/types/analysis.ts). When adding a value, update **this file**, `src/types`, and the function’s `docs/spec/`.
 
 ## Primitive aliases
 
@@ -43,12 +43,13 @@ type LevelName =
   // extend as needed
 ```
 
-Each `levels` value is a `LevelPoint` (`time` + `price`) for the candle that defines the point. `time` is the bar open time as `TimeString` unless a spec says otherwise; `price` semantics (high / low / close / etc.) are defined per `LevelName` in the function spec.
+Each entry in `results[].levels` is a `Level` (`name` + `price` + `time`) for the candle that defines the point. `time` is the bar open time as `TimeString` unless a spec says otherwise; `price` semantics (high / low / close / etc.) are defined per `LevelName` in the function spec. The type allows duplicate `name` values; uniqueness is a function-spec concern.
 
 ```ts
-type LevelPoint = {
-  time: TimeString;
+type Level = {
+  name: LevelName;
   price: number;
+  time: TimeString;
 };
 ```
 
@@ -74,25 +75,33 @@ type AnalysisLabel =
 
 Functions may introduce new labels; never overload an existing label with a different meaning.
 
+## AnalyzeResult
+
+One detected structure. A function may return several.
+
+```ts
+type AnalyzeResult = {
+  /** Classification for this structure (formerly top-level label) */
+  name: AnalysisLabel;
+  /** Time span of this structure (not necessarily the full input window) */
+  range: { start: TimeString; end?: TimeString };
+  levels: Level[];
+};
+```
+
 ## AnalysisResult
 
 ```ts
 type AnalysisResult<TEvidence = unknown> = {
   functionId: string;
-  symbol: string;
-  timeframe: TimeFrame;
-  /** Time span of the detected structure / signals (not necessarily the full fetch window) */
-  range: { start: TimeString; end?: TimeString };
-  /** Named point → { time, price }; omit unused keys */
-  levels: Partial<Record<LevelName, LevelPoint>>;
+  results: AnalyzeResult[];
   /** Filled from the function’s summary template only */
   summary: string;
-  label: AnalysisLabel;
   /** Deterministic code path — always 1 for now */
   confidence: 1;
   /**
    * Function-specific extras not expressible as named levels.
-   * Prefer a minimal object (or empty) when geometry fits in levels/label/summary.
+   * Prefer a minimal object (or empty) when geometry fits in results/summary.
    */
   evidence: TEvidence;
 };
@@ -100,22 +109,34 @@ type AnalysisResult<TEvidence = unknown> = {
 
 ### Field notes
 
+- No `symbol` / `timeframe` on the result — instrument context stays with the caller (analyzers receive only `Bar[]`).
+- `results`: required array. Each item carries `name`, `range`, and `levels`. `summary`, `confidence`, and `evidence` stay on the outer result and are shared.
 - `range`: for a trend segment, typically from earliest used swing bar to latest used swing bar (or last bar of the structure). Define precisely in each `docs/spec`.
-- `levels`: required object; geometric authority for named anchors (`time` + `price`). Use `{}` only if the function has no points.
-- `evidence`: always present, JSON-serializable; put only facts that cannot be derived from `levels` / `label` / `summary` (e.g. resolved params, scores, counts). Schema is per function in `docs/spec`.
+- `levels`: geometric authority for named anchors (`name` + `price` + `time`). Use `[]` only if that structure has no points.
+- Insufficient structure still returns an `AnalyzeResult` whose `name` is a defined label (e.g. `unclear`). Do not use an empty `results` array in place of that label.
+- `evidence`: always present, JSON-serializable; put only facts that cannot be derived from `results` / `summary` (e.g. resolved params, scores, counts). Schema is per function in `docs/spec`.
 
 ## Standard analyzer input
 
+Analyzers receive MT5-aligned bars (same shape as `/bars` `data[]` / `src/types/bars.ts`). They do **not** fetch data.
+
 ```ts
-type AnalyzeParams<TOptions = Record<string, never>> = {
-  symbol: string;
-  timeframe: TimeFrame;
-  /** Request window start (TimeString or UnixSeconds — normalize before fetchBars) */
-  start: TimeString | UnixSeconds;
-  end?: TimeString | UnixSeconds;
-  count?: number;
-  options?: TOptions;
+type Bar = {
+  time: UnixSeconds;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  tick_volume?: number;
+  spread?: number;
+  real_volume?: number;
 };
 ```
 
-Every public analyzer: `(params: AnalyzeParams<…>) => Promise<AnalysisResult<…>>` (or sync if bars are injected for tests — prefer async + `fetchBars`).
+Every public analyzer:
+
+```ts
+(bars: Bar[], options?: TOptions) => AnalysisResult<TEvidence>
+```
+
+Prefer **sync** return (no I/O inside analyzers). `options` is function-specific; omit when unused.

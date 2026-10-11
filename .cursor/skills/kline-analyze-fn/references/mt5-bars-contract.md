@@ -97,7 +97,7 @@ fetchBars(params: {
 ```
 
 - Convert analysis `timeString` (ISO-8601 UTC) → Unix seconds **inside** the client or a shared time util, not ad hoc in every analyzer.
-- Map each `Bar.time` → `timeString` when filling `AnalysisResult.range` / `levels`.
+- Map each `Bar.time` → `TimeString` when filling `results[].range` / `results[].levels[].time`.
 - Do not scatter raw `fetch`/`axios` calls inside `src/analyze/*`.
 
 ## Bar type (analysis-facing)
@@ -114,3 +114,10 @@ type Bar = {
   real_volume?: number;
 };
 ```
+
+## Local fixtures (this repo)
+
+- Pull via `npm run pull-bars` → `testdata/bars/` (gitignored).
+- On-disk shape: `{ data, meta, pulledAt? }` matching the API envelope.
+- Load with `loadBarsFixture` / `loadBarsFixtureFile` from `src/data/loadBarsFixture.ts`.
+- Data-client unit tests mock `fetchBars`; analyzer unit tests inject synthetic `Bar[]` — never hit live MT5 in CI.

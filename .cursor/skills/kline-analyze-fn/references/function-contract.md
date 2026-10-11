@@ -5,24 +5,25 @@ How to turn an intent into a consistent analyzer.
 ## Public API pattern
 
 ```ts
-export async function classifySwingTrend(
-  params: AnalyzeParams<{ swingStrength?: number }>
-): Promise<AnalysisResult<SwingTrendEvidence>>;
+export function classifySwingTrend(
+  bars: Bar[],
+  options?: { swingStrength?: number }
+): AnalysisResult<SwingTrendEvidence>;
 ```
 
 - Export name = `functionId` (camelCase)
 - File: `src/analyze/<functionId>.ts` (when `src/` exists)
 - Spec: `docs/spec/<functionId-kebab>.md` (kebab-case filename)
+- Input bars = MT5 `/bars` `data[]` shape (`src/types/bars.ts`)
+- Prefer sync; caller / data module owns `fetchBars` / fixtures
 
 ## Required behavior
 
-1. Resolve time window → call `fetchBars` once (or document why more).
-2. Run pure analysis on `Bar[]`.
+1. Validate `bars` (and `options` when present).
+2. Run pure analysis on `Bar[]` (and shared helpers).
 3. Build `AnalysisResult`:
    - `functionId` constant matching export
-   - `symbol` / `timeframe` echoed from input (prefer `meta.symbol` from client if alias-resolved)
-   - `range` / `levels` from detected structure (`levels` values are `{ time, price }`)
-   - `label` from allowed set for that function
+   - `results`: one or more `AnalyzeResult` (`name`, `range`, `levels` as `Level[]`)
    - `confidence: 1`
    - `summary` via template fill only
    - `evidence` for extras not expressible as levels (minimal / empty when unused)
@@ -31,10 +32,10 @@ export async function classifySwingTrend(
 
 | Dependency | Role |
 |------------|------|
-| `fetchBars` | OHLC foundation |
-| time utils | `TimeString` ↔ Unix seconds |
+| Caller-supplied `Bar[]` | OHLC foundation (loaded outside analyzer) |
+| time utils | `TimeString` ↔ Unix seconds (for `results[].levels` / `results[].range`) |
 | pure helpers | swings, pivots, etc. (shared under `src/utils/`) |
-| types | `TimeFrame`, `LevelName`, `AnalysisLabel`, `AnalysisResult` |
+| types | `Bar`, `Level`, `LevelName`, `AnalysisLabel`, `AnalyzeResult`, `AnalysisResult` |
 
 If a helper is reusable (e.g. swing detection), extract once; do not copy into each analyzer.
 
@@ -49,16 +50,17 @@ Each `docs/spec` defines:
 Rules:
 
 - Short, factual, LLM-readable
-- Include `symbol`, `timeframe`, `label`, and key level times (from `levels.*.time`) when relevant
+- Include each structure’s `name` and key level times (from `results[].levels`) when relevant
+- Do **not** require `symbol` / `timeframe` (caller holds instrument context)
 - No markdown essays; one or two sentences
 
 Example pattern:
 
 ```text
-{symbol} {timeframe} structure={label}; H1@{H1} H2@{H2} L1@{L1} L2@{L2}
+structure={label}; H1@{H1} H2@{H2} L1@{L1} L2@{L2}
 ```
 
-Implement a tiny `fillSummary(template, vars)` helper when scaffolding exists; reuse it.
+Reuse `fillSummary(template, vars)` from `src/utils/summary.ts` (missing/`null`/`undefined` keys throw).
 
 ## Label & level ownership
 
@@ -68,22 +70,22 @@ Implement a tiny `fillSummary(template, vars)` helper when scaffolding exists; r
 ## Evidence
 
 - Always attach a structured `evidence` object (never omit the field)
-- Prefer `levels` + `label` for geometry and classification; put in `evidence` only facts that cannot be derived from them (resolved params, scores, counts, thresholds)
-- Prefer a minimal object when the function has little or no extra state; do not duplicate swing lists or rule tags already implied by `levels` / `label`
+- Prefer `results[].levels` + `results[].name` for geometry and classification; put in `evidence` only facts that cannot be derived from them (resolved params, scores, counts, thresholds)
+- Prefer a minimal object when the function has little or no extra state; do not duplicate swing lists or rule tags already implied by `results`
 - Prefer numbers/times/flags over prose; schema is per function in `docs/spec`
 
 ## Errors
 
-- Invalid params → throw typed error (or Result type once project standard exists)
-- Empty bars / insufficient swings → still return `AnalysisResult` with `label: "unclear"` when that is a defined outcome; do not throw for “no pattern”
-- Propagate `fetchBars` failures (network / 4xx / 5xx) — do not invent bars
+- Invalid args → throw typed error (or Result type once project standard exists)
+- Empty bars / insufficient swings → still return `AnalysisResult` with a `results` item whose `name` is `"unclear"` when that is a defined outcome; do not throw for “no pattern”
+- Analyzers never call `fetchBars`; fetch failures are handled by the caller / data module
 
 ## Target module layout
 
 ```text
 src/
   types/analysis.ts
-  data/fetchBars.ts
+  data/fetchBars.ts          # caller / data module only
   utils/time.ts
   utils/summary.ts
   utils/swings.ts          # when needed
