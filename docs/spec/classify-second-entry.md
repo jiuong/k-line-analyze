@@ -29,7 +29,10 @@ function classifySecondEntry(
 1. `classifySwingTrend(bars, { swingSpan, attachEntryMarks: false })` 取主段。
 2. `findSwingLegs`；对多/空分别按冲刺→回调窗切分；冲刺腿须落在同向 `bull_trend`/`bear_trend` 内。
 3. 窗内每个「逆势腿 → 顺势腿」转折，在顺势腿上取最早同向相邻突破（不受全局 high1–3 封顶限制）。
-4. 同一窗序号为 **2** 时发单。无任何 `high2`/`low2` → `unclear`。
+4. 同一窗序号为 **2** 时发单，且须同时满足：
+   - **突破 K**（`breakIndex`）仍落在冲刺腿所属同向 major 的 `[start, end]` 内（主趋势已翻向则不发）；
+   - **Stop**（`stopBeyond(P1)`）在 Entry 反侧（多 `stop < entry`，空相反）。
+5. 无任何合法 `high2`/`low2` → `unclear`。
 
 ## 输出
 
