@@ -36,4 +36,4 @@
 ## 变更
 
 - 主目标 TP1 随 classify 调整为 **1.0 扩展**（胜率仍只用 TP1）
-- 止损直接用 classify `Stop`（Fib P1），不再覆盖 prior-impulse
+- 止损直接用 classify `Stop`（Fib P1），不再覆盖 prior-impulse；`findPriorTrendImpulseExtremes` 已删除

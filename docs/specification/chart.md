@@ -139,7 +139,7 @@ Draw with the coordinate system from `withCoordinateSystem` or `getCoordinateSys
 
 Minimum mapping:
 
-- Each `Level` in `results[].levels` → one point at `(timeToX(time+08), priceToY(price))` labeled with `Level.name` (`H1`, `L2`, …). Count matches level entries across the supplied results.
+- Each drawn `Level` in `results[].levels` → one point at `(timeToX(time+08), priceToY(price))` labeled via `displayMarkText` (`H1`–`H3` / `L1`–`L3` as-is; `SignalBar` on `high1`–`low3` → `H1`–`L3`; otherwise `Level.name`). `classifySwingTrend` skips `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd` and draws entry-count `H1`–`H3` / `L1`–`L3` when those levels are still on the result.
 - Optional: highlight each item’s `range.start`–`range.end` (convert both; `end` may be absent).
 - Optional: draw `results[].name` / outer `summary` as text inside the plot. The library has no legend API.
 
@@ -176,12 +176,20 @@ Pointer hits, when the host implements them: `canvasPointFromClient(canvas, clie
 
 | # | Criterion |
 |---|-----------|
-| C1 | Given fixture bars + fixed `AnalysisResult`, `layer_drawings` marks match `results[].levels` entries 1:1 (time = bar open, after `+08:00` conversion) |
+| C1 | Given fixture bars + fixed `AnalysisResult`, drawn level dots match `results[].levels` 1:1 (time = bar open, after `+08:00` conversion), except a reversal signal draws only its `K2`, and `classifySwingTrend` omits trend endpoints |
 | C2 | Query window (symbol / timeframe / range) matches the candles from `setBars` |
 | C3 | Analysis packages remain importable without chart dependencies |
 | C4 | Refreshing the window updates candles via `setBars` only; playback status is never set |
 
-Summary text and result names stay on the review-page sidebar. The overlay draws a translucent `range` band; level dots stay 1:1 with `results[].levels` and are labeled with `Level.name`.
+Summary text and result names stay on the review-page sidebar. The overlay draws a translucent `range` band from K1 through K3. `classifySwingTrend` still draws that band. It draws entry-count dots `H1`–`H3` / `L1`–`L3` (from `entryCounts`, labeled as those names) when those levels are on the result. The review page keeps them only while Entry count is checked. It does not draw `BullTrendStart`, `BullTrendEnd`, `BearTrendStart`, or `BearTrendEnd`. Reversal signals draw only the `K2` dot; `K1` and `Confirm` stay on the result and are not drawn.
+
+`bull_reversal` bands and the `K2` dot are red (`#f85149`). `bear_reversal` bands and the `K2` dot are green (`#3fb950`). `bull_trend` and `minor_bull_trend` bands are the same red. `bear_trend` and `minor_bear_trend` bands are the same green. `trading_range` bands and inner pullback bands (`bar_pullback`, `multi_leg_pullback`, `leg_pullback`) are `#d2a8ff`. High level dots stay green; low level dots stay red.
+
+`classifyTradingRange` does not draw a vertical band or level dots. Each kept segment draws a horizontal line at `RangeHigh` (green `#3fb950`) and `RangeLow` (red `#f85149`). `timeToX` is the bar-slot center, so each line runs from half a slot before the first bar to half a slot after the last bar and covers every candle in the segment. The level name sits at the right end of the line.
+
+`classifyBodyGap` uses the same horizontal span. `GapNear` and `GapFar` are both `#d2a8ff`. An open gap has no `range.end`, so both lines cover that one bar. A filled gap runs from the gap bar through the fill bar. There is no vertical band and no level dot.
+
+`classifyTrendlineBreak` does not draw a vertical band. The two rail touches are connected and extended, at the same pixel slope, to the break bar's x. `bull_line_break` is red (`#f85149`). `bear_line_break` is green (`#3fb950`). Only `BreakBar` is a dot. `unclear` draws nothing.
 
 ## Review page
 
@@ -189,9 +197,9 @@ Summary text and result names stay on the review-page sidebar. The overlay draws
 
 1. The form loads symbols and timeframes from `GET /api/catalog`, which reads `../trading-playback/config/trading.json`. Options submit `code` and show `label (code)`. The first entry of each list is selected. From / To are `datetime-local` values converted to UTC Unix seconds. Empty To means now. Optional `count` and `refresh` still go to `GET /api/bars`. A missing or invalid catalog shows the error and does not invent options.
 2. The dev middleware ([`src/page/barsMiddleware.ts`](../../src/page/barsMiddleware.ts)) calls [`loadBarsWithMeta`](../../src/data/loadBars.ts). It does not accept a file path. [`src/page/catalogMiddleware.ts`](../../src/page/catalogMiddleware.ts) only serves that fixed catalog file.
-3. Analysis is off until a sidebar checkbox is enabled. [`runReview`](../../src/page/reviewModel.ts) runs only the checked functions (`classifySwingTrend`, `classifyReversalSignal`). Toggling recomputes marks without another bars request.
-4. The adapter `mount`s once, calls `attachPointerInteraction` (library pan, zoom, and crosshair), then `setBars` / `setResults`. A later submit calls `setBars` again. Leaving the page calls `unmount()`, which drops the library listeners.
-5. The sidebar shows `source` (`local` or `mt5`, plus degraded). Summary and `results[].name` appear only for enabled analyzers.
+3. Analysis is off until a sidebar checkbox is enabled. The sidebar lists each analyzer **once** via [`reviewSidebarItems`](../../src/page/reviewModel.ts) (default roots = [`REVIEW_SIDEBAR_TREE`](../../src/page/reviewModel.ts): **temporarily Second entry subtree only**). [`REVIEW_TREE`](../../src/page/reviewModel.ts) still records the full measure→classify catalog; that nesting does **not** drive checkboxes or drawing. Pass `REVIEW_TREE` into `reviewSidebarItems` to show all six measures again. Checking an item runs and draws **only that** `functionId`'s full results—no parent/child cascade. [`runReview`](../../src/page/reviewModel.ts) returns `{ analysis, reports }` for the checked classify and measure ids. A checked **measure** draws each trade's `Entry` (`#8b949e`), `Stop` (`#f85149`), and target line(s) (`#3fb950`) as horizontal **segments** over that trade's `range` (half a bar-slot past each end), with same-color labels at both ends, and prints win-rate / count stats in the sidebar. Default label is `Target`; when `SetupTrade.targets` is set (e.g. `measureSecondEntry` TP1–TP4), those names are drawn instead. `measureSecondEntry` sets `range` from the entry bar through the exit bar (stop/target hit, or last bar while open). A setup whose stop, entry, and target are out of trade order is not a trade: the same measure still draws that setup's `Entry` / `Stop` / `Target` segments and adds a `Fail` mark (`#f85149`) at its signal price and time. Those signals stay out of the win-rate stats. Checked **classify** nodes feed `setResults` and use the existing overlay rules (default band+dots; special cases for trading range, body gap, trendline break). `classifySwingTrend` has nested **Small-cycle trends** and **Entry count** display toggles, default off. Off hides `minor_bull_trend` / `minor_bear_trend` or strips `H1`–`H3` / `L1`–`L3` from the chart; the summary still reports `minor`. When trading-range and swing-trend results are both visible and one range segment fully covers two or more consecutive swing trends, those trends are hidden and the range stays. `classifyBodyGap` and `classifyTrendWithPullbacks` are not on the sidebar. Toggling recomputes marks without another bars request.
+4. The adapter `mount`s once, calls `attachPointerInteraction` (library pan, zoom, and crosshair), then `setBars` / `setResults` / `setReports`. A later submit calls `setBars` again. Leaving the page calls `unmount()`, which drops the library listeners.
+5. The sidebar shows `source` (`local` or `mt5`, plus degraded). Measure `SetupReport.stats` (and optional `byBasis`) appear for enabled measures. Summary and `results[].name` appear for enabled classify analyzers. Below the chart, `#setup-trades` lists each enabled measure's trades and Fail rows: measure id, basis, range, Entry/Stop/Target, status (`win`/`loss`/`open`/`unfilled`/`Fail`), planned reward/risk, and max reward/risk before stop (`maxRewardRisk`). The chart itself does not mark W/L on candles.
 6. A failed response shows the error and leaves the previous candles in place. An empty successful window clears the chart.
 
 ## Related
