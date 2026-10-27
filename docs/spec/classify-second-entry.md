@@ -36,10 +36,11 @@ function classifySecondEntry(
 1. `classifySwingTrend(bars, { swingSpan: majorSwingSpan, attachEntryMarks: false })` 取主段。
 2. `findSwingLegs(bars, entrySwingSpan)`；对多/空分别按冲刺→回调窗切分；冲刺腿须落在同向 `bull_trend`/`bear_trend` 内。未在后续创出新极值的冲刺不发窗，并跳过该冲刺继续扫描（避免早期深摆动吞掉后续窗）。
 3. 窗内每个「逆势腿 → 顺势腿」转折，在顺势腿上取最早同向相邻突破（不受全局 high1–3 封顶限制）。
-4. 同一窗序号为 **2** 时发单，且须同时满足：
+4. **P1/Stop 防守回退：** 以窗的细腿冲刺为初值；若冲刺结束后至突破 K 的回调逆向极值已打穿冲刺起点（空：`max(high) > start`；多：`min(low) < start`），则沿更早同向腿起点回退 P1，**P2 仍为原冲刺终点**；重复直至未打穿或无更早同向腿。`Stop = stopBeyond(P1)`，Fib 共用该 P1/P2。
+5. 同一窗序号为 **2** 时发单，且须同时满足：
    - **突破 K**（`breakIndex`）仍落在冲刺腿所属同向 major 的 `[start, end]` 内（主趋势已翻向则不发）；
-   - **Stop**（`stopBeyond(P1)`）在 Entry 反侧（多 `stop < entry`，空相反）。
-5. 无任何合法 `high2`/`low2` → `unclear`。
+   - **Stop**（`stopBeyond(P1)`，经回退后）在 Entry 反侧（多 `stop < entry`，空相反）。
+6. 无任何合法 `high2`/`low2` → `unclear`。
 
 ## 输出
 
@@ -53,8 +54,8 @@ function classifySecondEntry(
 |-----------|------|
 | `SignalBar` | K2 趋势侧极值 |
 | `Entry` | `K1.high + tick` 或 `K1.low - tick`，时间 K2 |
-| `Stop` | `stopBeyond(P1)`：Fib 扩展锚点 P1（有 `tickSize` 时略超） |
-| `P1` `P2` | 回调前冲刺腿起止价 |
+| `Stop` | `stopBeyond(P1)`：回退后的防守锚（有 `tickSize` 时略超） |
+| `P1` `P2` | P1=经回退的冲刺起点；P2=原细腿冲刺终点 |
 | `P3` | K1 回调侧极值（多 `low` / 空 `high`） |
 | `TP1`–`TP4` | `projectFibExtension(P1,P2,P3)` 在 `1` / `1.272` / `1.414` / `1.618` |
 

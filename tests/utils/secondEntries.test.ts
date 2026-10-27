@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { AnalyzeResult } from "../../src/types/analysis.js";
 import type { Bar } from "../../src/types/bars.js";
-import { findSecondEntriesFrom } from "../../src/utils/secondEntries.js";
+import {
+  findSecondEntriesFrom,
+  resolveProtectiveImpulse,
+} from "../../src/utils/secondEntries.js";
+import type { SwingLeg } from "../../src/utils/swingLegs.js";
 import { toTimeString } from "../../src/utils/time.js";
 
 const T0 = 1_700_000_000;
@@ -130,5 +134,89 @@ describe("findSecondEntriesFrom", () => {
       entrySwingSpan: 1,
     });
     expect(hits.some((hit) => hit.bull)).toBe(true);
+  });
+
+  it("walks P1 back when pullback violates the fine impulse start", () => {
+    // Mirror of 10.27 afternoon: fine bear P1=100 violated by PB high 105 →
+    // prior bear start 120; P2 stays fine end 80.
+    const fineImpulse: SwingLeg = {
+      direction: "bear",
+      startIndex: 3,
+      endIndex: 5,
+      startPrice: 100,
+      endPrice: 80,
+    };
+    const legs: SwingLeg[] = [
+      {
+        direction: "bear",
+        startIndex: 0,
+        endIndex: 1,
+        startPrice: 120,
+        endPrice: 95,
+      },
+      {
+        direction: "bull",
+        startIndex: 1,
+        endIndex: 3,
+        startPrice: 95,
+        endPrice: 100,
+      },
+      fineImpulse,
+      {
+        direction: "bull",
+        startIndex: 5,
+        endIndex: 7,
+        startPrice: 80,
+        endPrice: 105,
+      },
+    ];
+    const series = [
+      bar(0, 119, 120, 118, 119),
+      bar(1, 119, 119, 95, 96),
+      bar(2, 96, 98, 95, 97),
+      bar(3, 97, 100, 96, 99), // fine P1 bar
+      bar(4, 99, 99.5, 85, 86),
+      bar(5, 86, 87, 80, 81), // fine P2
+      bar(6, 81, 90, 80.5, 89),
+      bar(7, 89, 105, 88, 104), // PB high violates 100
+      bar(8, 104, 104.5, 103, 103.5), // L2 break neighborhood
+    ];
+    const resolved = resolveProtectiveImpulse(
+      series,
+      legs,
+      fineImpulse,
+      false,
+      8,
+    );
+    expect(resolved.p1Price).toBe(120);
+    expect(resolved.p1Index).toBe(0);
+    expect(resolved.p2Price).toBe(80);
+    expect(resolved.p2Index).toBe(5);
+  });
+
+  it("keeps fine P1 when pullback does not violate the start", () => {
+    const fineImpulse: SwingLeg = {
+      direction: "bear",
+      startIndex: 0,
+      endIndex: 1,
+      startPrice: 100,
+      endPrice: 80,
+    };
+    const legs: SwingLeg[] = [fineImpulse];
+    const series = [
+      bar(0, 99, 100, 98, 99),
+      bar(1, 99, 99, 80, 81),
+      bar(2, 81, 90, 80.5, 89), // PB high 90 < 100
+      bar(3, 89, 89.5, 88, 88.5),
+    ];
+    const resolved = resolveProtectiveImpulse(
+      series,
+      legs,
+      fineImpulse,
+      false,
+      3,
+    );
+    expect(resolved.p1Price).toBe(100);
+    expect(resolved.p2Price).toBe(80);
   });
 });

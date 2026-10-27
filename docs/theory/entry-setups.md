@@ -49,9 +49,9 @@
 
 **入场：** 转折邻域内 `K2` 突破 `K1` 同向极值（± tick）。触发价标在 K2；K2 极值作 `SignalBar`。
 
-**止损：** Fib 扩展锚点 P1 之外（`stopBeyond(P1)`）。`measureSecondEntry` 直接采用原子 `Stop`。突破 K 须仍在冲刺所属同向 major 内；Stop 不在 Entry 反侧则不发单。
+**止损：** Fib 扩展锚点 P1 之外（`stopBeyond(P1)`）。若 entry 细腿冲刺起点已被该回调打穿，则 P1/Stop 回退到更早同向冲刺起点（P2 仍用原冲刺终点）。`measureSecondEntry` 直接采用原子 `Stop`。突破 K 须仍在冲刺所属同向 major 内；Stop 不在 Entry 反侧则不发单。
 
-**止盈：** 回调前顺势腿 P1→P2，P3=K1 回调侧极值；`projectFibExtension` 得 TP1@1、TP2@1.272、TP3@1.414、TP4@1.618。测量胜率只用 TP1；图上标注 TP1–TP4，线段覆盖入场 K→离场 K。
+**止盈：** 回退后的 P1→原冲刺 P2，P3=K1 回调侧极值；`projectFibExtension` 得 TP1@1、TP2@1.272、TP3@1.414、TP4@1.618。测量胜率只用 TP1；图上标注 TP1–TP4，线段覆盖入场 K→离场 K。
 
 **实现：** [classify-second-entry.md](../spec/classify-second-entry.md)；[classify-swing-trend.md](../spec/classify-swing-trend.md) 挂 `H2`/`L2`；测量见 [measure-second-entry.md](../spec/measure-second-entry.md)。
 

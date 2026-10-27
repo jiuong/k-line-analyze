@@ -87,10 +87,16 @@ export function findSecondEntriesFrom(
       if (!parent) continue;
       if (second.breakIndex < parent.start || second.breakIndex > parent.end) continue;
 
-      const impulse = window.impulse;
+      const protective = resolveProtectiveImpulse(
+        bars,
+        legs,
+        window.impulse,
+        bull,
+        second.breakIndex,
+      );
       const direction = bull ? "up" : "down";
       const stop = stopBeyond(
-        impulse.startPrice,
+        protective.p1Price,
         direction,
         tick > 0 ? tick : undefined,
       );
@@ -103,10 +109,10 @@ export function findSecondEntriesFrom(
         priorIndex: second.priorIndex,
         breakIndex: second.breakIndex,
         entryPrice: second.entryPrice,
-        p1Index: impulse.startIndex,
-        p1Price: impulse.startPrice,
-        p2Index: impulse.endIndex,
-        p2Price: impulse.endPrice,
+        p1Index: protective.p1Index,
+        p1Price: protective.p1Price,
+        p2Index: protective.p2Index,
+        p2Price: protective.p2Price,
         p3Price: bull ? prior.low : prior.high,
       });
     }
@@ -120,6 +126,86 @@ type PullbackWindow = {
   impulse: SwingLeg;
   legs: SwingLeg[];
 };
+
+type ProtectiveImpulse = {
+  p1Index: number;
+  p1Price: number;
+  p2Index: number;
+  p2Price: number;
+};
+
+/**
+ * If the pullback after the fine impulse violates its start (bear: PB high >
+ * start; bull: PB low < start), walk back to earlier same-direction leg starts
+ * until the defense still holds. P2 stays the original impulse end.
+ */
+export function resolveProtectiveImpulse(
+  bars: readonly Bar[],
+  legs: readonly SwingLeg[],
+  impulse: SwingLeg,
+  bull: boolean,
+  breakIndex: number,
+): ProtectiveImpulse {
+  const withDir: SwingLeg["direction"] = bull ? "bull" : "bear";
+  const p2Index = impulse.endIndex;
+  const p2Price = impulse.endPrice;
+  let p1Index = impulse.startIndex;
+  let p1Price = impulse.startPrice;
+  const pbExtreme = pullbackAdverseExtreme(
+    bars,
+    impulse.endIndex,
+    breakIndex,
+    bull,
+  );
+
+  while (pbExtreme !== undefined && startViolated(bull, pbExtreme, p1Price)) {
+    const prev = priorWithTrendLeg(legs, withDir, p1Index);
+    if (prev === undefined) break;
+    p1Index = prev.startIndex;
+    p1Price = prev.startPrice;
+  }
+
+  return { p1Index, p1Price, p2Index, p2Price };
+}
+
+function pullbackAdverseExtreme(
+  bars: readonly Bar[],
+  impulseEndIndex: number,
+  breakIndex: number,
+  bull: boolean,
+): number | undefined {
+  const from = impulseEndIndex + 1;
+  if (from > breakIndex || from >= bars.length) return undefined;
+  let extreme = bull ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+  const last = Math.min(breakIndex, bars.length - 1);
+  for (let index = from; index <= last; index += 1) {
+    const bar = bars[index]!;
+    if (bull) {
+      if (bar.low < extreme) extreme = bar.low;
+    } else if (bar.high > extreme) {
+      extreme = bar.high;
+    }
+  }
+  return extreme;
+}
+
+function startViolated(bull: boolean, pbExtreme: number, startPrice: number): boolean {
+  return bull ? pbExtreme < startPrice : pbExtreme > startPrice;
+}
+
+function priorWithTrendLeg(
+  legs: readonly SwingLeg[],
+  withDir: SwingLeg["direction"],
+  currentStartIndex: number,
+): SwingLeg | undefined {
+  let prior: SwingLeg | undefined;
+  for (const leg of legs) {
+    if (leg.direction !== withDir) continue;
+    if (leg.startIndex >= currentStartIndex) break;
+    prior = leg;
+  }
+  return prior;
+}
 
 /**
  * After each with-trend impulse, collect following legs until (and including)
