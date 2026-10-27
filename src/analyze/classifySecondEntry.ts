@@ -56,20 +56,20 @@ function toResult(
   const priorTime = toTimeString(prior.time);
   const direction: SetupDirection = hit.bull ? "up" : "down";
   const signalPrice = hit.bull ? broke.high : broke.low;
-  const stopAnchor = hit.bull ? prior.low : prior.high;
+  const p1Time = toTimeString(bars[hit.p1Index]!.time);
   const tps = projectFibExtension(hit.p1Price, hit.p2Price, hit.p3Price, TP_RATIOS);
   const levels: Level[] = [
     { name: "SignalBar", price: signalPrice, time: breakTime },
     { name: "Entry", price: hit.entryPrice, time: breakTime },
     {
       name: "Stop",
-      price: stopBeyond(stopAnchor, direction, tickSize),
-      time: priorTime,
+      price: stopBeyond(hit.p1Price, direction, tickSize),
+      time: p1Time,
     },
     {
       name: "P1",
       price: hit.p1Price,
-      time: toTimeString(bars[hit.p1Index]!.time),
+      time: p1Time,
     },
     {
       name: "P2",

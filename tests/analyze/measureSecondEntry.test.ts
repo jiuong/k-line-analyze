@@ -1,9 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { measureSecondEntry } from "../../src/analyze/measureSecondEntry.js";
 import { classifySecondEntry } from "../../src/analyze/classifySecondEntry.js";
 import type { Bar } from "../../src/types/bars.js";
-import * as priorExtremes from "../../src/utils/priorTrendImpulseExtremes.js";
-import { findPriorTrendImpulseExtremes } from "../../src/utils/priorTrendImpulseExtremes.js";
 
 const T0 = 1_700_000_000;
 
@@ -51,23 +49,19 @@ describe("measureSecondEntry", () => {
     expect(report.stats.winRate).toBeNull();
   });
 
-  it("measures high2 with prior-impulse adverse stop and TP1", () => {
+  it("measures high2 with Fib P1 stop and TP1", () => {
     const bars = abcBull();
     const report = measureSecondEntry(bars, { swingSpan: 1 });
     expect(report.trades).toHaveLength(1);
     const trade = report.trades[0]!;
-    const prior = findPriorTrendImpulseExtremes(bars, { time: trade.signalTime }, { swingSpan: 1 });
-    expect(prior).not.toBeNull();
-    const adverse = Math.min(prior!.guard.price, prior!.trend.price);
     expect(trade).toMatchObject({
       basis: "high2",
       direction: "up",
       entry: 56,
-      stop: adverse,
+      stop: 20,
+      target: 102,
     });
-    expect(trade.stop).toBe(50);
     expect(trade.stop).toBeLessThan(trade.entry);
-    expect(trade.target).toBe(102);
     expect(trade.targets?.map((level) => level.name)).toEqual([
       "TP1",
       "TP2",
@@ -79,39 +73,16 @@ describe("measureSecondEntry", () => {
     expect(trade.outcome).toBeDefined();
   });
 
-  it("falls back to classify Stop when prior extremes are null", () => {
-    const spy = vi
-      .spyOn(priorExtremes, "findPriorTrendImpulseExtremes")
-      .mockReturnValue(null);
-    try {
-      const bars = abcBull();
-      const classified = classifySecondEntry(bars, { swingSpan: 1 });
-      const classifyStop = classified.results[0]!.levels.find((level) => level.name === "Stop");
-      const report = measureSecondEntry(bars, { swingSpan: 1 });
-      expect(report.trades).toHaveLength(1);
-      expect(report.trades[0]!.stop).toBe(classifyStop!.price);
-      expect(report.trades[0]!.stop).toBe(52);
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
-  it("falls back when prior extreme is not opposite the trade", () => {
-    const spy = vi.spyOn(priorExtremes, "findPriorTrendImpulseExtremes").mockReturnValue({
-      direction: "bull",
-      guard: { price: 80, index: 0, time: "t0" },
-      trend: { price: 90, index: 1, time: "t1" },
-      validFromIndex: 2,
-      validToIndex: 3,
-    });
-    try {
-      const bars = abcBull();
-      const report = measureSecondEntry(bars, { swingSpan: 1 });
-      expect(report.trades).toHaveLength(1);
-      // adverse min=80 > entry 56 → not opposite a long → classify Stop
-      expect(report.trades[0]!.stop).toBe(52);
-    } finally {
-      spy.mockRestore();
-    }
+  it("uses classify Stop (Fib P1) as measure stop", () => {
+    const bars = abcBull();
+    const classified = classifySecondEntry(bars, { swingSpan: 1 });
+    const levels = classified.results[0]!.levels;
+    const classifyStop = levels.find((level) => level.name === "Stop");
+    const p1 = levels.find((level) => level.name === "P1");
+    const report = measureSecondEntry(bars, { swingSpan: 1 });
+    expect(report.trades).toHaveLength(1);
+    expect(report.trades[0]!.stop).toBe(classifyStop!.price);
+    expect(report.trades[0]!.stop).toBe(p1!.price);
+    expect(report.trades[0]!.stop).toBe(20);
   });
 });

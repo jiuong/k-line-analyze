@@ -43,7 +43,7 @@ function classifySecondEntry(
 |-----------|------|
 | `SignalBar` | K2 趋势侧极值 |
 | `Entry` | `K1.high + tick` 或 `K1.low - tick`，时间 K2 |
-| `Stop` | `stopBeyond`：高位保护 K1.low，低位保护 K1.high |
+| `Stop` | `stopBeyond(P1)`：Fib 扩展锚点 P1（有 `tickSize` 时略超） |
 | `P1` `P2` | 回调前冲刺腿起止价 |
 | `P3` | K1 回调侧极值（多 `low` / 空 `high`） |
 | `TP1`–`TP4` | `projectFibExtension(P1,P2,P3)` 在 `1` / `1.272` / `1.414` / `1.618` |

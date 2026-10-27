@@ -23,7 +23,7 @@ function measureSecondEntry(
 - 看多 `stop < entry < target`，看空相反。达不到的进入 `invalid`，不进胜率；勾选本 measure 时图上仍画 Entry / Stop / Target（目标取 TP1），并标 `Fail`
 - `basis` 为该标签。`high2` 为 `up`，`low2` 为 `down`
 - 信号价是 `SignalBar`，信号时间是 `Entry` 的 K
-- 入场与目标用原子函数价（目标 = `TP1`）。**止损**在入场 K 上调用 `findPriorTrendImpulseExtremes`：取相对**做单方向反向**的那一端（多：`min(guard, trend)`；空：`max(guard, trend)`），且须严格在 entry 反侧（多 `< entry`，空 `> entry`）；`null` 或不在反侧时回退原子 `Stop`。不加 `stopBeyond`。`classifySecondEntry` 的 levels 不变
+- 入场、止损与目标用原子函数价（目标 = `TP1`；止损 = classify `Stop`，即 Fib 扩展锚点 P1 经 `stopBeyond`）
 - 盈亏比与胜负只调用 `rewardRisk` / `resolveOutcome` / `summarizeTrades`
 - `tradeSpan: true`：`range` = `entryTime` → 离场 bar（win/loss 触及 bar；open 为序列末 bar；unfilled 为入场 bar）
 - `targets` 带上 TP1–TP4 供 overlay 标注

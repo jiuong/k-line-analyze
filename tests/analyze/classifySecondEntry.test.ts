@@ -88,7 +88,7 @@ describe("classifySecondEntry", () => {
     expect(byName.TP2?.price).toBeCloseTo(52 + 1.272 * 50);
     expect(byName.TP3?.price).toBeCloseTo(52 + 1.414 * 50);
     expect(byName.TP4?.price).toBeCloseTo(52 + 1.618 * 50);
-    expect(byName.Stop?.price).toBe(52);
+    expect(byName.Stop?.price).toBe(20);
     expect(byName.SignalBar?.price).toBe(72);
   });
 
@@ -98,7 +98,7 @@ describe("classifySecondEntry", () => {
     const entry = item.levels.find((level) => level.name === "Entry");
     const stop = item.levels.find((level) => level.name === "Stop");
     expect(entry?.price).toBe(56.5);
-    expect(stop?.price).toBe(51.5);
+    expect(stop?.price).toBe(19.5);
   });
 
   it("emits low2 on the second hinge of a bear ABC pullback", () => {
