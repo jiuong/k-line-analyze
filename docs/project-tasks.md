@@ -65,7 +65,7 @@ No FR-2 Linear parent — tracked here.
 | swing-share-range-last-leg | Share same-dir range last leg with following trend | done | Superseded by `swing-allow-range-overlap` |
 | swing-allow-range-overlap | Trends may overlap `classifyTradingRange`; no hole cut | done | Removed `excludeInnerRanges` / last-leg share. Narrow whole-segment → `trading_range` kept. No FR-2 Linear parent |
 | swing-hl-label-swap | Bull open `H1` / close `L1`; bear open `L1` / close `H1` | done | Superseded by `unify-hl-entry-counts` |
-| unify-hl-entry-counts | `H1`–`H3`/`L1`–`L3` = Brooks entries; trend endpoints `Bull/BearTrendStart/End` | done | Shared `entryCounts`; swingTrend marks entries; secondEntry uses util; overlay short labels. No FR-2 Linear parent |
+| unify-hl-entry-counts | `H1`–`H3`/`L1`–`L3` = Brooks entries; trend endpoints `Bull/BearTrendStart/End` | done | `entryCounts` = full-series adjacent helper only; SE / swingTrend H2·L2 = `secondEntries` hinges; overlay short labels. No FR-2 Linear parent |
 | swing-ignore-time-hole | Do not let a time hole fail a trend | done | Staircase and single-leg checks skip a pair whose open-time gap is larger than the window’s smallest positive gap. Segment edges stay on reversal K2 |
 
 ### classifyReversalSignal

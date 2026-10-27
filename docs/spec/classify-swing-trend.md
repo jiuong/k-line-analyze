@@ -61,7 +61,7 @@ function classifySwingTrend(
 | `fillSummary` | **exists** | `src/utils/summary.ts` |
 | `AnalysisResult` types | **exists** | `bull_trend` / `bear_trend` / `minor_bull_trend` / `minor_bear_trend` / `trading_range` / `unclear`; endpoints `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd`; entry marks `H2` / `L2` from second-entry logic |
 | `isSingleLegTrend` | **exists** | [`src/utils/trendLeg.ts`](../../src/utils/trendLeg.ts). Narrow-segment trading-range rewrite |
-| `entryCounts` | **exists** | [`src/utils/entryCounts.ts`](../../src/utils/entryCounts.ts). Adjacent-bar High/Low entry count |
+| `findSecondEntriesFrom` | **exists** | [`src/utils/secondEntries.ts`](../../src/utils/secondEntries.ts). Pullback-window H2/L2 (not full-series `countAdjacentEntries`) |
 
 This function does not call `classifyReversalSignal` or `classifyTradingRange`.
 

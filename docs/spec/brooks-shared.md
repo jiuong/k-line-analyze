@@ -1,6 +1,6 @@
 # Brooks atom batch — shared contract
 
-Status: **in progress**. Helpers and analyzers through the Brooks batch are implemented, including `entryCounts` (`countAdjacentEntries`). `H1`–`H3` / `L1`–`L3` are adjacent-bar entry LevelNames; trend endpoints use `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd`. Implementation tasks: [`docs/tasks/README.md`](../tasks/README.md). No new `src/analyze` export and no new `AnalysisLabel` / `LevelName` in `src/types/analysis.ts` until the function that owns the name is implemented.
+Status: **in progress**. Helpers and analyzers through the Brooks batch are implemented. `H1`–`H3` / `L1`–`L3` are entry LevelNames; trend endpoints use `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd`. **Second entry / swing-trend H2·L2** come from `secondEntries` (pullback-window hinges), not from full-series `countAdjacentEntries`. Implementation tasks: [`docs/tasks/README.md`](../tasks/README.md). No new `src/analyze` export and no new `AnalysisLabel` / `LevelName` in `src/types/analysis.ts` until the function that owns the name is implemented.
 
 Per-function specs in this batch link here. They do not repeat this contract.
 
@@ -48,7 +48,10 @@ No `symbol` or `timeframe` on the input or the result.
 - Array neighbors stay one pair when open times are far apart. A time hole is not a split.
 - This batch does not classify always-in, a higher timeframe, session opens, or an EMA test.
 - `classifyReversalSignal` stays the local three-bar reversal. `classifySignalBar` and `classifyMajorTrendReversal` do not replace it.
-- `H1`–`H3` and `L1`–`L3` are LevelNames for adjacent-bar high/low entry anchors (trigger price on K2). Result labels stay `high1`–`high3` / `low1`–`low3`. Trend segment endpoints use `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd`. Counting logic lives only in `entryCounts`.
+- `H1`–`H3` and `L1`–`L3` are LevelNames for high/low entry anchors (trigger price on K2). Result labels stay `high1`–`high3` / `low1`–`low3`. Trend segment endpoints use `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd`.
+- **Two counters (do not conflate):**
+  - `entryCounts.countAdjacentEntries` — full-series adjacent breaks; not used by `classifySecondEntry` / swing-trend marks.
+  - `secondEntries.findSecondEntriesFrom` — pullback-window adverse→with-trend hinges; SE emits only the 2nd (`high2`/`low2`); swing-trend attaches `H2`/`L2` from the same helper.
 - Why entry / stop / target for the six measure setups: [`docs/theory/entry-setups.md`](../theory/entry-setups.md) (theory only; this file and per-function specs stay authoritative for algorithms).
 
 ## Constraints
@@ -76,8 +79,8 @@ No `symbol` or `timeframe` on the input or the result.
 | `src/utils/fibonacci.ts` | `projectFibRetracement`, `fibRetracementFromBars` | Fibonacci **retracement**. Defaults `0 / 0.236 / 0.382 / 0.5 / 0.618 / 0.786 / 1`. `price(r) = later + r * (earlier − later)`. From bars: window `max(high)` / `min(low)` at earliest indexes; `low` first → `high_to_low`; `high` first → `low_to_high`; same index or zero range → `null`. Empty / non-array bars, bad options/ratios, or non-finite high/low throws `TypeError`. No `AnalysisResult` |
 | `src/utils/fibonacci.ts` | `projectFibExtension`, `fibExtensionFromBars` | Fibonacci **extension** (independent of retracement). Defaults `0 / 0.236 / 0.382 / 0.5 / 0.618 / 0.786 / 1 / 1.272 / 1.414 / 1.618 / 2 / 2.618 / 3.618 / 4.236`. `price(r) = v3 + r * (v2 − v1)`. From bars: window high/low as V1 (earlier) / V2 (later); V3 is the opposite extreme after V2 (earliest on a tie). Same-bar extremes, zero range, or no bars after V2 → `null`. Empty / non-array bars, bad options/ratios, or non-finite high/low throws `TypeError`. No `AnalysisResult` |
 | `src/utils/setupPrices.ts` | `entryBeyond`, `stopBeyond`, `targetFrom` | `direction` is the trade side. `entryBeyond` steps with the trade: `up` adds `tickSize`, `down` subtracts it. `stopBeyond` steps against the trade: `up` subtracts, `down` adds. Omitted `tickSize` leaves the extreme unchanged. `targetFrom` returns the finite price it was given (a measured-move projection or the opposite edge). It does not call `projectMeasuredMove` or read bars. A non-finite price, a `tickSize` that is not finite and `> 0`, or a bad direction throws `TypeError`. No `AnalysisResult` |
-| `src/utils/entryCounts.ts` | `countAdjacentEntries`, `entryLevelName` | Adjacent K1→K2 high/low entries on the full series (no trend window). High: `K2.high >= K1.high + tick` → `high1`–`high3` on K2 at price `K1.high + tick`. Low: `K2.low <= K1.low - tick` → `low1`–`low3` at `K1.low - tick`. Same K2 may emit both. Each side caps at 3. Omitted `tickSize` uses `0`. `entryLevelName` maps `high1`→`H1` … `low3`→`L3`. Does not call `classifySwingTrend` or emit `AnalysisResult`. Invalid bars/`tickSize` throws `TypeError` |
-| `src/utils/secondEntries.ts` | `findSecondEntriesFrom` | Pullback-window second entries (`high2`/`low2` hits). Windows from swing legs after each with-trend impulse until a newer with-trend extreme. Hinges are adverse→with-trend; hinge-local adjacent breaks (uncapped). Impulse must sit on a matching major; break bar must stay inside that major; Stop(P1) must sit on the opposite side of Entry. No `AnalysisResult` |
+| `src/utils/entryCounts.ts` | `countAdjacentEntries`, `entryLevelName` | Adjacent K1→K2 high/low entries on the **full series** (no trend window). High: `K2.high >= K1.high + tick` → `high1`–`high3` on K2 at price `K1.high + tick`. Low: `K2.low <= K1.low - tick` → `low1`–`low3` at `K1.low - tick`. Same K2 may emit both. Each side caps at 3. Omitted `tickSize` uses `0`. `entryLevelName` maps `high1`→`H1` … `low3`→`L3`. **Not** called by `classifySecondEntry` or `classifySwingTrend` marks. Does not emit `AnalysisResult`. Invalid bars/`tickSize` throws `TypeError` |
+| `src/utils/secondEntries.ts` | `findSecondEntriesFrom` | **SE / swing-trend H2·L2 source.** Pullback windows from swing legs (`entrySwingSpan`, default 1) after each with-trend impulse until a newer with-trend extreme; open impulses skip without starving later windows. Hinges = adverse→with-trend; hinge-local adjacent breaks (uncapped). Only the **2nd** hinge is returned (`high2`/`low2`). Majors from caller (typically `classifySwingTrend` at span 2). Impulse must sit on a matching major; break bar must stay inside that major; Stop(P1) must sit on the opposite side of Entry. No `AnalysisResult` |
 
 Helpers throw `TypeError` on a non-array `bars` when they take a series. They do not return `unclear`.
 
@@ -143,8 +146,8 @@ Inside and outside are mutually exclusive. A trend bar is not a doji.
 | `Neckline` | Counter-swing extreme between the two same-side swings of a double top or bottom. Always emitted. In the type union |
 | `BullTrendStart` `BullTrendEnd` | Bull trend segment endpoints (`classifySwingTrend`). In the type union |
 | `BearTrendStart` `BearTrendEnd` | Bear trend segment endpoints (`classifySwingTrend`). In the type union |
-| `H1` `H2` `H3` | High entry LevelNames. `classifySwingTrend` attaches `H2` from second-entry hits |
-| `L1` `L2` `L3` | Low entry LevelNames. `classifySwingTrend` attaches `L2` from second-entry hits |
+| `H1` `H2` `H3` | High entry LevelNames. `classifySwingTrend` attaches only `H2` (from `findSecondEntriesFrom`); `H1`/`H3` are for `countAdjacentEntries` / future use |
+| `L1` `L2` `L3` | Low entry LevelNames. `classifySwingTrend` attaches only `L2` (from `findSecondEntriesFrom`); `L1`/`L3` are for `countAdjacentEntries` / future use |
 | `P1` `P2` `P3` | Fib-extension anchors for `classifySecondEntry` |
 | `TP1` `TP2` `TP3` `TP4` | Fib extension targets at `1` / `1.272` / `1.414` / `1.618` (`classifySecondEntry`) |
 
