@@ -4,11 +4,20 @@ Authoritative function spec. Skill mirror: `.cursor/skills/kline-analyze-fn/exam
 
 ## Intent
 
-Split a caller-supplied `Bar[]` into one or more trend segments using reversal signals from `classifyReversalSignal`.
+Split a caller-supplied `Bar[]` into one or more trend segments by merging `findSwingLegs` impulses.
 
-Each kept reversal opens a segment. A `bull_reversal` opens a `bull_trend`. A `bear_reversal` opens a `bear_trend`. Direction comes from that opening signal, not from a higher-high / lower-low price compare.
+Dependency chain: `findSwings` → `findSwingLegs` → `classifySwingTrend`. Direction and boundaries come from swing legs, not from `classifyReversalSignal` K2 nodes.
 
-The segment runs from that signal’s `K2` through the next opposite signal’s `K2` (both bars included). The last segment has no closing reversal, so it runs through the last input bar (that bar included).
+A `bull` leg opens or continues a `bull_trend`. A `bear` leg opens or continues a `bear_trend`. Same-direction legs chain when each new impulse makes a strict new extreme and the structure between them is a valid pullback. A pullback may be one bar, one opposite leg, or a full opposite swing trend (same rules, recursive).
+
+If an opposite structure touches or crosses the prior impulse’s guarded extreme, it is not a pullback: the prior trend ends, and that opposite leg opens a new opposite trend.
+
+After those segments exist, two rewrites run in order:
+
+1. A segment of at least 3 bars whose high–low span is at most 1.5× the average bar height becomes `trading_range`, unless that slice is a single-leg trend. The single-leg check skips a time hole and resumes on the later bar.
+2. A remaining top-level trend of at most 3 bars, sandwiched by two longer trends of the opposite direction, becomes `minor_bull_trend` or `minor_bear_trend` when its prices sit inside the merged outer trend. Nested multi-leg pullback trends absorbed inside a parent are also emitted; short contained ones may already be labeled `minor_*`.
+
+Trends are **not** cut when they overlap a `classifyTradingRange` span. Interval and trend may cover the same bars; callers that need the range still call `classifyTradingRange` separately.
 
 ## Identity
 
@@ -25,86 +34,87 @@ The segment runs from that signal’s `K2` through the next opposite signal’s 
 ```ts
 function classifySwingTrend(
   bars: Bar[],
+  options?: {
+    swingSpan?: number;
+    entrySwingSpan?: number;
+    attachEntryMarks?: boolean;
+  },
 ): AnalysisResult<Record<string, never>>;
 ```
 
-`Bar` matches MT5 `/bars` `data[]` ([`src/types/bars.ts`](../../src/types/bars.ts)). No `options`.
+`Bar` matches MT5 `/bars` `data[]` ([`src/types/bars.ts`](../../src/types/bars.ts)).
 
 | Param | Required | Notes |
 |-------|----------|-------|
 | `bars` | yes | Caller-supplied OHLC array. Non-array or length 0 throws `TypeError` |
+| `options.swingSpan` | no | Integer `>= 1`, default `2`. Forwarded into `findSwingLegs` for trend merge |
+| `options.entrySwingSpan` | no | Integer `>= 1`, default `1`. Legs for H2/L2 marks via `findSecondEntriesFrom` |
+| `options.attachEntryMarks` | no | Default `true`. When `false`, skip H2/L2 attachment |
 
 ## Dependencies
 
 | Dep | Status | Notes |
 |-----|--------|-------|
 | Caller-supplied `Bar[]` | **exists** | Loaded outside this function |
-| `classifyReversalSignal` | **exists** | [`classifyReversalSignal.ts`](../../src/analyze/classifyReversalSignal.ts). Same-direction runs are already collapsed to the later signal |
-| `toTimeString` | **exists** | `src/utils/time.ts` — open tail endpoint time |
+| `findSwingLegs` | **exists** | [`src/utils/swingLegs.ts`](../../src/utils/swingLegs.ts). Pivot pairing; this function does not re-detect pivots |
+| `toTimeString` | **exists** | `src/utils/time.ts` |
 | `fillSummary` | **exists** | `src/utils/summary.ts` |
-| `AnalysisResult` types | **exists** | `bull_trend` / `bear_trend` / `unclear`; levels `H1` / `L1` |
+| `AnalysisResult` types | **exists** | `bull_trend` / `bear_trend` / `minor_bull_trend` / `minor_bear_trend` / `trading_range` / `unclear`; endpoints `BullTrendStart` / `BullTrendEnd` / `BearTrendStart` / `BearTrendEnd`; entry marks `H2` / `L2` from second-entry logic |
+| `isSingleLegTrend` | **exists** | [`src/utils/trendLeg.ts`](../../src/utils/trendLeg.ts). Narrow-segment trading-range rewrite |
+| `entryCounts` | **exists** | [`src/utils/entryCounts.ts`](../../src/utils/entryCounts.ts). Adjacent-bar High/Low entry count |
 
-This function does not detect pivots. `src/utils/swings.ts` is not a dependency.
+This function does not call `classifyReversalSignal` or `classifyTradingRange`.
 
 ## Algorithm
 
 1. Throw `TypeError` when `bars` is not an array or `bars.length === 0`.
-2. Call `classifyReversalSignal(bars)`. Keep items whose `name` is `bull_reversal` or `bear_reversal`, in that order. Drop `unclear` / `no_reversal`.
-3. When none remain, return one `AnalyzeResult` with `name: "unclear"`, `levels: []`, and `range` from the first bar’s open time to the last bar’s open time. Do not throw. Bars before the first `K2` are not a segment.
-4. Otherwise each kept signal `Si` (`i` from 0 through `n`) is one segment:
-   - **Name.** `bull_reversal` → `bull_trend`. `bear_reversal` → `bear_trend`.
-   - **Start.** That signal’s `K2` (`time` and `price` copied). A missing `K2` throws (upstream invariant).
-   - **End when `i < n`.** `S(i+1)`’s `K2`, copied the same way. Both `K2` bars are inside the segment. That `K2` is also the next segment’s start, so adjacent `range` values meet on it.
-   - **End when `i = n`.** The last input bar. `range.end` is that bar’s open time. Bull price is its `high` (`H1`). Bear price is its `low` (`L1`). This point is not a reversal `K2`. Emit the segment even when the opening `K2` is already the last bar (`range.start` equals `range.end`).
-5. `n + 1` reversals produce `n + 1` segments. One reversal is one open segment from its `K2` to the last bar, not `unclear`.
-6. The opening signal’s `K1` is outside the segment. A closed segment’s confirm bar is outside that segment (it falls in the next segment unless that bar is the next `K2`).
-7. Because `classifyReversalSignal` keeps only the later signal of a same-direction run, a run such as bull, bull, bear starts at the later bull’s `K2`.
-8. Build `summary` from the template below. `confidence` is `1`. `evidence` is `{}`.
+2. Call `findSwingLegs(bars, swingSpan)`. When the leg list is empty, return one `unclear` result spanning the window.
+3. **Merge legs into trends** (greedy, left to right; recursive for opposite pullback trends):
+   - Open a trend on the current leg’s direction. One leg alone is a valid trend. Guarded extreme = that leg’s `startPrice` (bull: swing low; bear: swing high). Last impulse extreme = that leg’s `endPrice`.
+   - To extend: parse the **maximal opposite swing trend** starting at the next leg (same merge rules). Compute the opposite structure’s adverse extreme over bars from its first leg start through its last leg end (bull parent → min `low`; bear parent → max `high`).
+   - **Touches or crosses** the guarded extreme (`<=` for bull parent, `>=` for bear parent): not a pullback. Close the current trend at the last included same-direction leg’s end. Resume by opening a new opposite trend on that opposite leg.
+   - **Does not cover**, and the next same-direction leg after the opposite structure makes a **strict** new extreme (bull: higher `endPrice`; bear: lower `endPrice`): absorb the opposite structure as a pullback and include the new impulse. Update guarded extreme to the new impulse’s `startPrice` and last impulse extreme to its `endPrice`. Repeat.
+   - **Does not cover**, but there is no following same-direction leg, or that leg fails the new extreme: close the current trend at the last included same-direction leg; resume parsing from the opposite structure’s first leg.
+   - **Pullback kinds** (for docs and tests; matching avoids double-count):
+     1. **Single bar**: between the last impulse end and the next same-direction start, the adverse extreme is carried by exactly one bar. No separate trend result.
+     2. **Single opposite leg**: opposite parse spans exactly one leg. No separate trend result.
+     3. **Opposite swing trend**: opposite parse spans two or more same-direction opposite impulses (with its own pullbacks). Emit that opposite trend as its own result (nested under the parent in output order). If its bar count is at most 3 and prices sit inside the parent, label it `minor_*` immediately; otherwise keep `bull_trend` / `bear_trend`.
+4. Convert each merged trend to an `AnalyzeResult`: `range` from first impulse start bar open through last impulse end bar open; levels `Bull/BearTrendStart` = first impulse start price/time; `Bull/BearTrendEnd` = last impulse end price/time.
+5. **Trading range.** Same as before: for each segment with at least 3 bars, span ≤ 1.5× average height, and not `isSingleLegTrend` → `trading_range` with `RangeHigh` / `RangeLow`. Runs before top-level minor nesting.
+6. **Minor cycle (top-level).** Same left-mid-right nest as before for sequential primaries (at most 3 bars, price-contained, outers merge). Nested pullback trends already emitted in step 3 are listed immediately after their parent and are not re-processed as mid candidates unless they appear as sequential primaries.
+7. **Entry marks.** `findSecondEntriesFrom` with `entrySwingSpan` (default 1) against majors from this pass (`swingSpan`, default 2); attach `H2` / `L2` to the covering `bull_trend` / `bear_trend`. Skip when `attachEntryMarks: false`.
+8. Assemble `summary`, `confidence: 1`, `evidence: {}`.
 
-Segment order follows the reversal scan. Callers should pass bars in time order, the same assumption as `classifyReversalSignal`.
+Callers should pass bars in time order.
 
 ## Labels
 
 | `results[].name` | Condition |
 |------------------|-----------|
-| `bull_trend` | Opened by a `bull_reversal` |
-| `bear_trend` | Opened by a `bear_reversal` |
-| `unclear` | No reversal in the window |
-
-`trading_range` is not emitted. Several segments produce several `results` items, in scan order.
+| `bull_trend` | Merged bull impulse chain, not rewritten |
+| `bear_trend` | Merged bear impulse chain, not rewritten |
+| `minor_bull_trend` | Short bull nested inside a larger bear (top-level nest or short nested pullback) |
+| `minor_bear_trend` | Short bear nested inside a larger bull |
+| `trading_range` | At least 3 bars, span ≤ 1.5× average height, not a single-leg trend |
+| `unclear` | No swing legs in the window |
 
 ## Levels
 
-Shape: `Level[]` (`{ name, price, time }`). Two entries, chronological. Names are unique inside one item. `time` is the bar open via `toTimeString` (already stored on a copied `K2`).
+| Segment | First level | Second level | Extra |
+|---------|-------------|--------------|-------|
+| `bull_trend` / `minor_bull_trend` | `BullTrendStart` = first bull leg `startPrice` | `BullTrendEnd` = last bull leg `endPrice` | Entry marks when covering |
+| `bear_trend` / `minor_bear_trend` | `BearTrendStart` = first bear leg `startPrice` | `BearTrendEnd` = last bear leg `endPrice` | Entry marks when covering |
+| `trading_range` | Earlier of segment high / low | The other extreme | — |
 
-| Segment | First level | Second level |
-|---------|-------------|--------------|
-| `bull_trend` | `L1` = opening `K2` | `H1` = closing `K2`, or last bar `high` when open |
-| `bear_trend` | `H1` = opening `K2` | `L1` = closing `K2`, or last bar `low` when open |
-
-`unclear` uses `levels: []`.
-
-`range.start` is the opening `K2` time. `range.end` is the closing `K2` time, or the last bar’s open time when the segment is open. For `unclear`, `range` spans the first bar through the last bar.
+`unclear` uses `levels: []`. `range` for a trend is the first impulse start time through the last impulse end time.
 
 ## Summary template
 
 ```text
-trends={count}; last={lastName} from={from} to={to}
+trends={count}; minor={minor}; ranges={ranges}; last={lastName} from={from} to={to}
 ```
 
-| Placeholder | Source |
-|-------------|--------|
-| `{count}` | Number of trend items (0 when the only item is `unclear`) |
-| `{lastName}` | `name` of the last `results` item |
-| `{from}` | Last segment’s opening `K2` time; `-` when that item has no levels |
-| `{to}` | Last segment’s end time (closing `K2` or last bar); `-` when that item has no levels |
-
-Examples:
-
-```text
-trends=1; last=bull_trend from=2023-11-14T22:14:20Z to=2023-11-14T22:16:20Z
-trends=0; last=unclear from=- to=-
-```
+Same placeholders as before (`count` / `minor` / `ranges` / `lastName` / `from` / `to`).
 
 ## Evidence
 
@@ -112,27 +122,30 @@ trends=0; last=unclear from=- to=-
 type SwingTrendEvidence = Record<string, never>;
 ```
 
-Always `{}`. Geometry and classification live in `results`.
+Always `{}`.
 
 ## Errors
 
 | Case | Behavior |
 |------|----------|
 | `bars` is not an array, or `bars.length === 0` | Throw `TypeError` |
-| 1–2 bars, or no confirmed reversal | `unclear`, do not throw |
-| Reversal item missing `K2` | Throw `Error` |
+| Invalid `options` / `swingSpan` | Throw `TypeError` |
+| No legs (short window, or pivots do not pair) | `unclear`, do not throw |
 
 ## Test outline
 
 | Case | Fixture idea | Expect |
 |------|--------------|--------|
-| Bull | One bull reversal, bars after its `K2` | One `bull_trend`; `L1` is that `K2`; `H1` is the last bar’s high |
-| Bear | One bear reversal | One `bear_trend`; `H1` is that `K2`; `L1` is the last bar’s low |
-| Same-direction run | Two bull pairs then no opposite | One `bull_trend` starting at the later `K2` |
-| Three reversals | Bull, bear, bull, with bars after the last `K2` | Two closed segments plus one open segment; adjacent ranges share the middle `K2` |
-| No reversal | Doji / no confirmed pair | `unclear`, empty levels |
-| Short | 1 or 2 bars | `unclear`, range covers the window |
-| Invalid | Non-array, empty array | `TypeError` |
-| Contract | Any success path | `confidence === 1`, `evidence` is `{}`, summary matches the template |
+| Single bull leg | One low→high swing leg | One `bull_trend`; endpoints from that leg |
+| Single bear leg | One high→low swing leg | One `bear_trend` |
+| Single-leg pullback chain | Bull, bear (HL), bull (HH) | One `bull_trend` spanning first low through second high |
+| Single-bar pullback | Two bull legs with one adverse bar between that holds the prior low | One `bull_trend` |
+| Nested opposite trend pullback | Bull, multi-leg bear that holds the prior low, bull HH | Parent `bull_trend` plus nested bear (`minor_*` if short) |
+| Cover breaks | Opposite leg low ≤ prior bull `startPrice` | Prior bull ends; opposite leg opens `bear_trend` |
+| Failed new extreme | Pullback holds, next same-dir fails HH/LL | Prior trend ends at last qualifying impulse; resume from opposite |
+| Narrow rewrite | ≥3 bars, span ≤ 1.5× avg, not single leg | `trading_range` |
+| No legs | Too few bars for pivots | `unclear` |
+| Invalid | Non-array / empty / bad `swingSpan` | `TypeError` |
+| Entry marks | ABC pullback second entry | `H2` / `L2` attach to covering major |
 
 Inject synthetic `Bar[]`. Do not call MT5.

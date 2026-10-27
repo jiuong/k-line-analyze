@@ -16,12 +16,23 @@ const TP_NAMES = ["TP1", "TP2", "TP3", "TP4"] as const;
 
 export type ClassifySecondEntryOptions = {
   tickSize?: number;
+  /** Span for `classifySwingTrend` majors. Default `2`. */
+  majorSwingSpan?: number;
+  /** Span for pullback-window hinge legs. Default `1`. */
+  entrySwingSpan?: number;
+  /**
+   * Alias for `majorSwingSpan` when that field is omitted (backward compat).
+   * Does not change `entrySwingSpan` default.
+   */
   swingSpan?: number;
 };
 
 /**
  * Pullback-scoped second entries (high2 / low2) with fib-extension targets.
  * A miss is `unclear`.
+ *
+ * Majors use a coarser span (default 2); entry hinges use a finer span
+ * (default 1).
  */
 export function classifySecondEntry(
   bars: Bar[],
@@ -31,14 +42,15 @@ export function classifySecondEntry(
     throw new TypeError("classifySecondEntry: bars must be a non-empty array");
   }
   const tickSize = resolveTick(options);
-  const swingSpan = resolveSwingSpan(options);
+  const majorSwingSpan = resolveMajorSwingSpan(options);
+  const entrySwingSpan = resolveEntrySwingSpan(options);
   const swing = classifySwingTrend(bars, {
-    swingSpan,
+    swingSpan: majorSwingSpan,
     attachEntryMarks: false,
   });
   const hits = findSecondEntriesFrom(bars, swing.results, undefined, {
     tickSize,
-    swingSpan,
+    entrySwingSpan,
     functionId: FUNCTION_ID,
   });
   if (hits.length === 0) return assemble([unclearResult(bars)]);
@@ -103,13 +115,32 @@ function resolveTick(options?: ClassifySecondEntryOptions): number | undefined {
   return options.tickSize;
 }
 
-function resolveSwingSpan(options?: ClassifySecondEntryOptions): number {
-  if (options === undefined || options.swingSpan === undefined) return 2;
+function resolveMajorSwingSpan(options?: ClassifySecondEntryOptions): number {
+  if (options === undefined) return 2;
   assertOptions(options);
-  if (!Number.isInteger(options.swingSpan) || options.swingSpan < 1) {
-    throw new TypeError("classifySecondEntry: swingSpan must be an integer >= 1");
+  const raw =
+    options.majorSwingSpan !== undefined
+      ? options.majorSwingSpan
+      : options.swingSpan !== undefined
+        ? options.swingSpan
+        : 2;
+  if (!Number.isInteger(raw) || raw < 1) {
+    throw new TypeError(
+      "classifySecondEntry: majorSwingSpan must be an integer >= 1",
+    );
   }
-  return options.swingSpan;
+  return raw;
+}
+
+function resolveEntrySwingSpan(options?: ClassifySecondEntryOptions): number {
+  if (options === undefined || options.entrySwingSpan === undefined) return 1;
+  assertOptions(options);
+  if (!Number.isInteger(options.entrySwingSpan) || options.entrySwingSpan < 1) {
+    throw new TypeError(
+      "classifySecondEntry: entrySwingSpan must be an integer >= 1",
+    );
+  }
+  return options.entrySwingSpan;
 }
 
 function assertOptions(options: ClassifySecondEntryOptions): void {

@@ -55,6 +55,8 @@ describe("classifySecondEntry", () => {
     expect(() => classifySecondEntry(bars, null as unknown as object)).toThrow(TypeError);
     expect(() => classifySecondEntry(bars, { tickSize: 0 })).toThrow(TypeError);
     expect(() => classifySecondEntry(bars, { swingSpan: 0 })).toThrow(TypeError);
+    expect(() => classifySecondEntry(bars, { majorSwingSpan: 0 })).toThrow(TypeError);
+    expect(() => classifySecondEntry(bars, { entrySwingSpan: 0 })).toThrow(TypeError);
   });
 
   it("returns unclear when there is no second with-trend hinge", () => {
@@ -74,8 +76,8 @@ describe("classifySecondEntry", () => {
     expect(result.summary).toBe("entries=0; last=unclear");
   });
 
-  it("emits high2 on the second hinge of a bull ABC pullback", () => {
-    const result = classifySecondEntry(abcBull(), { swingSpan: 1 });
+  it("emits high2 on the second hinge of a bull ABC pullback (defaults major=2 entry=1)", () => {
+    const result = classifySecondEntry(abcBull());
     expect(result.results.map((item) => item.name)).toEqual(["high2"]);
     expect(result.summary).toBe("entries=1; last=high2");
     const item = result.results[0]!;
@@ -93,7 +95,7 @@ describe("classifySecondEntry", () => {
   });
 
   it("applies tickSize to entry and stop on high2", () => {
-    const result = classifySecondEntry(abcBull(), { swingSpan: 1, tickSize: 0.5 });
+    const result = classifySecondEntry(abcBull(), { tickSize: 0.5 });
     const item = result.results[0]!;
     const entry = item.levels.find((level) => level.name === "Entry");
     const stop = item.levels.find((level) => level.name === "Stop");
@@ -102,7 +104,7 @@ describe("classifySecondEntry", () => {
   });
 
   it("emits low2 on the second hinge of a bear ABC pullback", () => {
-    const result = classifySecondEntry(abcBear(), { swingSpan: 1 });
+    const result = classifySecondEntry(abcBear());
     expect(result.results.some((item) => item.name === "low2")).toBe(true);
   });
 });

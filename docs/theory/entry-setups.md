@@ -45,6 +45,8 @@
 
 **语境：** 主趋势回调内，逆势腿→顺势腿（或趋势恢复）转折处的顺势相邻突破。同一回调内第 1、2 次为 H1/H2（空头 L1/L2）。例：多头 PB 中 W1/W3 空腿、W2 多腿 → W1→W2 为 H1，W3→新多头为 H2。原子函数**只输出** `high2` / `low2`。
 
+**粒度：** major / always-in 用较粗摆动（默认 `majorSwingSpan=2`）；回调窗内 H1/H2 腿用较细摆动（默认 `entrySwingSpan=1`）。
+
 **入场：** 转折邻域内 `K2` 突破 `K1` 同向极值（± tick）。触发价标在 K2；K2 极值作 `SignalBar`。
 
 **止损：** Fib 扩展锚点 P1 之外（`stopBeyond(P1)`）。`measureSecondEntry` 直接采用原子 `Stop`。突破 K 须仍在冲刺所属同向 major 内；Stop 不在 Entry 反侧则不发单。

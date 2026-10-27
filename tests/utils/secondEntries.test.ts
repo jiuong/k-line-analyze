@@ -78,7 +78,7 @@ describe("findSecondEntriesFrom", () => {
   it("keeps high2 when break stays inside the impulse major", () => {
     const bars = abcBull();
     const majors = [major("bull_trend", 0, 14)];
-    const hits = findSecondEntriesFrom(bars, majors, undefined, { swingSpan: 1 });
+    const hits = findSecondEntriesFrom(bars, majors, undefined);
     expect(hits).toHaveLength(1);
     expect(hits[0]!.bull).toBe(true);
     expect(hits[0]!.entryPrice).toBe(56);
@@ -91,7 +91,7 @@ describe("findSecondEntriesFrom", () => {
     // Impulse for the ABC window ends at index 4 (price 70); truncate major there so
     // the H2 break (~11) falls outside.
     const majors = [major("bull_trend", 0, 4), major("bear_trend", 5, 14)];
-    const hits = findSecondEntriesFrom(bars, majors, undefined, { swingSpan: 1 });
+    const hits = findSecondEntriesFrom(bars, majors, undefined);
     expect(hits.filter((hit) => hit.bull)).toEqual([]);
   });
 
@@ -99,10 +99,36 @@ describe("findSecondEntriesFrom", () => {
     const bars = breakOutsideMajorBars();
     // Cover all bars with one bull major so only the stop-side gate can reject.
     const majors = [major("bull_trend", 0, 8)];
-    const hits = findSecondEntriesFrom(bars, majors, undefined, { swingSpan: 1 });
+    const hits = findSecondEntriesFrom(bars, majors, undefined);
     for (const hit of hits) {
       if (!hit.bull) continue;
       expect(hit.p1Price).toBeLessThan(hit.entryPrice);
     }
+  });
+
+  it("rejects non-integer entrySwingSpan", () => {
+    const bars = abcBull();
+    expect(() =>
+      findSecondEntriesFrom(bars, [major("bull_trend", 0, 14)], undefined, {
+        entrySwingSpan: 0,
+      }),
+    ).toThrow(/entrySwingSpan/);
+  });
+
+  it("does not let an early open impulse starve a later high2", () => {
+    // Early bull impulse never gets a newer HH; later ABC still must emit high2.
+    const bars = [
+      bar(0, 10, 12, 5, 6), // deep early low
+      bar(1, 6, 40, 5.5, 39), // early high 40 — no later HH above 40
+      bar(2, 39, 39.5, 38, 38.5),
+      ...abcBull().map((b, index) =>
+        bar(index + 3, b.open, b.high, b.low, b.close),
+      ),
+    ];
+    const majors = [major("bull_trend", 0, bars.length - 1)];
+    const hits = findSecondEntriesFrom(bars, majors, undefined, {
+      entrySwingSpan: 1,
+    });
+    expect(hits.some((hit) => hit.bull)).toBe(true);
   });
 });

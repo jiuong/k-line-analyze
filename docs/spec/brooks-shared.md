@@ -58,6 +58,7 @@ No `symbol` or `timeframe` on the input or the result.
 - `options.tickSize`, when a function accepts it, is an optional finite number `> 0`. Omitted: `Entry` equals the directional extreme and `evidence.tickApplied` is `false`. Present and invalid: `TypeError`. The function does not infer a symbol’s tick.
 - `options.swingSpan`, when accepted, is an integer `>= 1`. Default `2`, forwarded unchanged into `findSwings` / `classifySwingLeg`.
 - Downstream functions pass the same `swingSpan` and `tickSize` they received. They do not invent a second default.
+- **Exception — second entry:** majors use `majorSwingSpan` (default 2); pullback H1/H2 legs use `entrySwingSpan` (default 1). See [classify-second-entry.md](classify-second-entry.md).
 - `summary` / `confidence` / `evidence` stay on the outer result. Geometry stays on `results`.
 
 ## Pure helpers (not analyzers)

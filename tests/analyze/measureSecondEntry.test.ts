@@ -51,7 +51,7 @@ describe("measureSecondEntry", () => {
 
   it("measures high2 with Fib P1 stop and TP1", () => {
     const bars = abcBull();
-    const report = measureSecondEntry(bars, { swingSpan: 1 });
+    const report = measureSecondEntry(bars);
     expect(report.trades).toHaveLength(1);
     const trade = report.trades[0]!;
     expect(trade).toMatchObject({
@@ -75,11 +75,11 @@ describe("measureSecondEntry", () => {
 
   it("uses classify Stop (Fib P1) as measure stop", () => {
     const bars = abcBull();
-    const classified = classifySecondEntry(bars, { swingSpan: 1 });
+    const classified = classifySecondEntry(bars);
     const levels = classified.results[0]!.levels;
     const classifyStop = levels.find((level) => level.name === "Stop");
     const p1 = levels.find((level) => level.name === "P1");
-    const report = measureSecondEntry(bars, { swingSpan: 1 });
+    const report = measureSecondEntry(bars);
     expect(report.trades).toHaveLength(1);
     expect(report.trades[0]!.stop).toBe(classifyStop!.price);
     expect(report.trades[0]!.stop).toBe(p1!.price);

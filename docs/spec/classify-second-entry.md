@@ -15,19 +15,26 @@ Status: **implemented**. Task: [impl-classify-second-entry](../tasks/impl-classi
 ```ts
 function classifySecondEntry(
   bars: Bar[],
-  options?: { tickSize?: number; swingSpan?: number },
+  options?: {
+    tickSize?: number;
+    majorSwingSpan?: number;
+    entrySwingSpan?: number;
+    swingSpan?: number;
+  },
 ): AnalysisResult<Record<string, never>>;
 ```
 
 | Option | Default | Role |
 |--------|---------|------|
 | `tickSize` | omit → `0` | 入场/止损步进 |
-| `swingSpan` | `2` | 转发给 `classifySwingTrend` / `findSwingLegs` |
+| `majorSwingSpan` | `2` | 转发给 `classifySwingTrend`（粗 major / always-in） |
+| `entrySwingSpan` | `1` | 转发给 `findSecondEntriesFrom` 的回调窗腿（细 H1/H2） |
+| `swingSpan` | — | `majorSwingSpan` 未设时的别名（不改 `entrySwingSpan` 默认） |
 
 ## 算法
 
-1. `classifySwingTrend(bars, { swingSpan, attachEntryMarks: false })` 取主段。
-2. `findSwingLegs`；对多/空分别按冲刺→回调窗切分；冲刺腿须落在同向 `bull_trend`/`bear_trend` 内。
+1. `classifySwingTrend(bars, { swingSpan: majorSwingSpan, attachEntryMarks: false })` 取主段。
+2. `findSwingLegs(bars, entrySwingSpan)`；对多/空分别按冲刺→回调窗切分；冲刺腿须落在同向 `bull_trend`/`bear_trend` 内。未在后续创出新极值的冲刺不发窗，并跳过该冲刺继续扫描（避免早期深摆动吞掉后续窗）。
 3. 窗内每个「逆势腿 → 顺势腿」转折，在顺势腿上取最早同向相邻突破（不受全局 high1–3 封顶限制）。
 4. 同一窗序号为 **2** 时发单，且须同时满足：
    - **突破 K**（`breakIndex`）仍落在冲刺腿所属同向 major 的 `[start, end]` 内（主趋势已翻向则不发）；

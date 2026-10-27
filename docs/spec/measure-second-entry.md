@@ -11,11 +11,16 @@ Status: **implemented**. Task: [impl-measure-second-entry](../tasks/impl-measure
 ```ts
 function measureSecondEntry(
   bars: Bar[],
-  options?: { tickSize?: number; swingSpan?: number },
+  options?: {
+    tickSize?: number;
+    majorSwingSpan?: number;
+    entrySwingSpan?: number;
+    swingSpan?: number;
+  },
 ): SetupReport;
 ```
 
-`options` 原样传给 `classifySecondEntry`。
+`options` 原样传给 `classifySecondEntry`（默认 majorSpan=2、entrySpan=1）。
 
 ## 规则
 

@@ -19,6 +19,15 @@ export type SecondEntryHit = {
 
 export type SecondEntryFromPartsOptions = {
   tickSize?: number;
+  /**
+   * Swing span for pullback-window / H1–H2 hinge legs.
+   * Default `1`. Majors are supplied by the caller (often coarser).
+   */
+  entrySwingSpan?: number;
+  /**
+   * @deprecated Prefer `entrySwingSpan`. Used for legs when `entrySwingSpan`
+   * is omitted (tests / older callers).
+   */
   swingSpan?: number;
   functionId?: string;
 };
@@ -28,6 +37,9 @@ export type SecondEntryFromPartsOptions = {
  * Each with-trend impulse opens a pullback window until the next with-trend
  * leg that makes a strict new extreme; adverse→with-trend hinges inside
  * that window are H1, H2, … — only the 2nd is returned.
+ *
+ * Legs use `entrySwingSpan` (default 1); `majors` come from the caller
+ * (typically `classifySwingTrend` at span 2).
  */
 export function findSecondEntriesFrom(
   bars: readonly Bar[],
@@ -39,9 +51,9 @@ export function findSecondEntriesFrom(
     throw new TypeError("findSecondEntriesFrom: bars must be an array");
   }
   const id = options?.functionId ?? "findSecondEntriesFrom";
-  const swingSpan = resolveSwingSpan(options?.swingSpan);
+  const entrySpan = resolveEntrySwingSpan(options);
   const tick = resolveTick(options?.tickSize);
-  const legs = findSwingLegs(bars, swingSpan);
+  const legs = findSwingLegs(bars, entrySpan);
   const majorSpans = majors
     .filter((item) => item.name === "bull_trend" || item.name === "bear_trend")
     .map((item) => ({
@@ -112,6 +124,8 @@ type PullbackWindow = {
 /**
  * After each with-trend impulse, collect following legs until (and including)
  * the next with-trend leg that prints a strict new extreme.
+ * An impulse with no later new extreme is skipped (not emitted); scanning
+ * continues at the next leg so an early deep swing cannot starve later windows.
  */
 function pullbackWindows(legs: readonly SwingLeg[], bull: boolean): PullbackWindow[] {
   const withDir: SwingLeg["direction"] = bull ? "bull" : "bear";
@@ -124,10 +138,12 @@ function pullbackWindows(legs: readonly SwingLeg[], bull: boolean): PullbackWind
       continue;
     }
     const impulse = leg;
+    const impulseIndex = index;
     const collected: SwingLeg[] = [];
-    index += 1;
-    while (index < legs.length) {
-      const next = legs[index]!;
+    let cursor = index + 1;
+    let closed = false;
+    while (cursor < legs.length) {
+      const next = legs[cursor]!;
       collected.push(next);
       if (next.direction === withDir) {
         const newer = bull
@@ -136,27 +152,33 @@ function pullbackWindows(legs: readonly SwingLeg[], bull: boolean): PullbackWind
         if (newer) {
           windows.push({ impulse, legs: collected });
           // Resume from this leg as the next impulse (do not advance past it).
+          index = cursor;
+          closed = true;
           break;
         }
       }
-      index += 1;
+      cursor += 1;
     }
-    // If the loop exhausted without a newer extreme, do not emit an open window
-    // (no H2 resume yet). When we `break` on newer, index still points at resume leg.
-    if (index < legs.length && legs[index] === collected[collected.length - 1]) {
-      // next iteration treats resume as impulse
-      continue;
-    }
+    if (closed) continue;
+    // No newer extreme — skip this impulse only; do not consume the tail.
+    index = impulseIndex + 1;
   }
   return windows;
 }
 
-function resolveSwingSpan(swingSpan: number | undefined): number {
-  if (swingSpan === undefined) return 2;
-  if (!Number.isInteger(swingSpan) || swingSpan < 1) {
-    throw new TypeError("findSecondEntriesFrom: swingSpan must be an integer >= 1");
+function resolveEntrySwingSpan(options?: SecondEntryFromPartsOptions): number {
+  const raw =
+    options?.entrySwingSpan !== undefined
+      ? options.entrySwingSpan
+      : options?.swingSpan !== undefined
+        ? options.swingSpan
+        : 1;
+  if (!Number.isInteger(raw) || raw < 1) {
+    throw new TypeError(
+      "findSecondEntriesFrom: entrySwingSpan must be an integer >= 1",
+    );
   }
-  return swingSpan;
+  return raw;
 }
 
 function resolveTick(tickSize: number | undefined): number {
