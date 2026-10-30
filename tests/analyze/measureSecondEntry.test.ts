@@ -73,6 +73,16 @@ describe("measureSecondEntry", () => {
     expect(trade.outcome).toBeDefined();
   });
 
+  it("measures high1 when entryCount is 1", () => {
+    const report = measureSecondEntry(abcBull(), { entryCount: 1 });
+    expect(report.trades).toHaveLength(1);
+    expect(report.trades[0]).toMatchObject({
+      basis: "high1",
+      direction: "up",
+    });
+    expect(report.trades[0]!.entry).not.toBe(56);
+  });
+
   it("uses classify Stop (Fib P1) as measure stop", () => {
     const bars = abcBull();
     const classified = classifySecondEntry(bars);

@@ -1,7 +1,7 @@
 import type { Bar } from "../types/bars.js";
 import type { AnalysisResult, AnalyzeResult, Level } from "../types/analysis.js";
 import { projectFibExtension } from "../utils/fibonacci.js";
-import { findSecondEntriesFrom } from "../utils/secondEntries.js";
+import { countedEntryLabel, findSecondEntriesFrom } from "../utils/secondEntries.js";
 import { stopBeyond, type SetupDirection } from "../utils/setupPrices.js";
 import { fillSummary } from "../utils/summary.js";
 import { toTimeString } from "../utils/time.js";
@@ -16,6 +16,11 @@ const TP_NAMES = ["TP1", "TP2", "TP3", "TP4"] as const;
 
 export type ClassifySecondEntryOptions = {
   tickSize?: number;
+  /**
+   * Which hinge to emit in each pullback window.
+   * Integer `>= 1`. Default `2` (`high2` / `low2`).
+   */
+  entryCount?: number;
   /** Span for `classifySwingTrend` majors. Default `2`. */
   majorSwingSpan?: number;
   /** Span for pullback-window hinge legs. Default `1`. */
@@ -28,8 +33,8 @@ export type ClassifySecondEntryOptions = {
 };
 
 /**
- * Pullback-scoped second entries (high2 / low2) with fib-extension targets.
- * A miss is `unclear`.
+ * Pullback-scoped counted entries (`highN` / `lowN`) with fib-extension targets.
+ * Default N is 2. A miss is `unclear`.
  *
  * Majors use a coarser span (default 2); entry hinges use a finer span
  * (default 1).
@@ -42,6 +47,7 @@ export function classifySecondEntry(
     throw new TypeError("classifySecondEntry: bars must be a non-empty array");
   }
   const tickSize = resolveTick(options);
+  const entryCount = resolveEntryCount(options);
   const majorSwingSpan = resolveMajorSwingSpan(options);
   const entrySwingSpan = resolveEntrySwingSpan(options);
   const swing = classifySwingTrend(bars, {
@@ -50,17 +56,19 @@ export function classifySecondEntry(
   });
   const hits = findSecondEntriesFrom(bars, swing.results, undefined, {
     tickSize,
+    entryCount,
     entrySwingSpan,
     functionId: FUNCTION_ID,
   });
   if (hits.length === 0) return assemble([unclearResult(bars)]);
-  return assemble(hits.map((hit) => toResult(bars, hit, tickSize)));
+  return assemble(hits.map((hit) => toResult(bars, hit, tickSize, entryCount)));
 }
 
 function toResult(
   bars: readonly Bar[],
   hit: ReturnType<typeof findSecondEntriesFrom>[number],
   tickSize: number | undefined,
+  entryCount: number,
 ): AnalyzeResult {
   const prior = bars[hit.priorIndex]!;
   const broke = bars[hit.breakIndex]!;
@@ -99,7 +107,7 @@ function toResult(
     });
   }
   return {
-    name: hit.bull ? "high2" : "low2",
+    name: countedEntryLabel(hit.bull, entryCount),
     range: { start: priorTime, end: breakTime },
     levels,
   };
@@ -113,6 +121,17 @@ function resolveTick(options?: ClassifySecondEntryOptions): number | undefined {
     throw new TypeError("classifySecondEntry: tickSize must be a finite number > 0");
   }
   return options.tickSize;
+}
+
+function resolveEntryCount(options?: ClassifySecondEntryOptions): number {
+  if (options === undefined || options.entryCount === undefined) return 2;
+  assertOptions(options);
+  if (!Number.isInteger(options.entryCount) || options.entryCount < 1) {
+    throw new TypeError(
+      "classifySecondEntry: entryCount must be an integer >= 1",
+    );
+  }
+  return options.entryCount;
 }
 
 function resolveMajorSwingSpan(options?: ClassifySecondEntryOptions): number {

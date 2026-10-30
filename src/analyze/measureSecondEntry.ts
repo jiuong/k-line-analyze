@@ -8,6 +8,7 @@ import {
   type SetupTargetLevel,
 } from "../utils/setupMeasure.js";
 import type { SetupDirection } from "../utils/setupPrices.js";
+import { countedEntrySide } from "../utils/secondEntries.js";
 import {
   classifySecondEntry,
   type ClassifySecondEntryOptions,
@@ -17,7 +18,7 @@ const FUNCTION_ID = "measureSecondEntry";
 
 const TP_NAMES = ["TP1", "TP2", "TP3", "TP4"] as const;
 
-/** Measure high2 / low2 setups from `classifySecondEntry` (win-rate target = TP1). */
+/** Measure counted entries from `classifySecondEntry` (win-rate target = TP1). */
 export function measureSecondEntry(
   bars: Bar[],
   options?: ClassifySecondEntryOptions,
@@ -32,7 +33,8 @@ export function measureSecondEntry(
 }
 
 function toCandidate(item: AnalyzeResult): SetupCandidate | undefined {
-  if (item.name !== "high2" && item.name !== "low2") return undefined;
+  const side = countedEntrySide(item.name);
+  if (!side) return undefined;
   const entry = levelByName(item.levels, "Entry");
   const stop = levelByName(item.levels, "Stop");
   const target = levelByName(item.levels, "TP1");
@@ -45,7 +47,7 @@ function toCandidate(item: AnalyzeResult): SetupCandidate | undefined {
     if (level) targets.push({ name, price: level.price });
   }
 
-  const direction: SetupDirection = item.name === "high2" ? "up" : "down";
+  const direction: SetupDirection = side === "high" ? "up" : "down";
 
   return {
     basis: item.name,

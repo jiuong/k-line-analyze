@@ -5,7 +5,7 @@
 | Module | Analyze |
 | Requirement | [FR-2](../requirements.md#fr-2-price-action-analysis-composable-functions) |
 | Specification | [`../specification/analyze.md`](../specification/analyze.md) |
-| Status | `classifyReversalSignal` and `classifySwingTrend` implemented; swing pivot helper still deferred |
+| Status | `classifyReversalSignal`, `classifySwingTrend`, `classifyTradingRange`, `classifyPullback`, `classifyTrendWithPullbacks`, `classifyTrendBar`, `classifyDoji`, `classifyInsideBar`, `classifyOutsideBar`, `classifySwingLeg`, `classifyBodyGap`, `classifyChannel`, `classifyExtremeRetest`, `classifyTrendlineBreak`, `classifyRangeBreak`, `classifyFollowThrough`, `classifyFailedBreakout`, `classifySecondEntry`, `classifySignalBar`, `classifyClimax`, `classifyBreakoutPullback`, `classifyMicroDouble`, `classifyDoubleTopBottom`, `classifyWedge`, and `classifyMajorTrendReversal` implemented; shared swing, gap, bar-shape, measured-move, and setup-price helpers in `src/utils/` |
 
 ---
 
@@ -91,10 +91,14 @@ Contract detail (fields, naming, errors): [specification § Shared contract](../
 | Analysis types | [`src/types/analysis.ts`](../../src/types/analysis.ts) | `AnalysisResult`, `AnalyzeResult`, `Level`, `LevelName`, `AnalysisLabel` | done (`scaffold-types`; shape updated by `reshape-analysis-result`) |
 | Bar types | [`src/types/bars.ts`](../../src/types/bars.ts) | MT5-aligned `Bar` (analyzer input) | done |
 | Analyze module skeleton | [`src/analyze/index.ts`](../../src/analyze/index.ts) | `AnalyzerFn` + re-exports | done (`scaffold-analyze-module`) |
-| Analyzers | `src/analyze/<functionId>.ts` | Pure PA functions | `classifyReversalSignal` and `classifySwingTrend` done |
-| Time utils | [`src/utils/time.ts`](../../src/utils/time.ts) | Unix ↔ `TimeString` for `results[].levels` / `results[].range` | done |
+| Analyzers | `src/analyze/<functionId>.ts` | Pure PA functions | `classifyReversalSignal`, `classifySwingTrend`, `classifyTradingRange`, `classifyPullback`, `classifyTrendWithPullbacks`, `classifyTrendBar`, `classifyDoji`, `classifyInsideBar`, `classifyOutsideBar`, `classifySwingLeg`, `classifyBodyGap`, `classifyChannel`, `classifyExtremeRetest`, `classifyTrendlineBreak`, `classifyRangeBreak`, `classifyFollowThrough`, `classifyFailedBreakout`, `classifySecondEntry`, `classifySignalBar`, `classifyClimax`, `classifyBreakoutPullback`, `classifyMicroDouble`, `classifyDoubleTopBottom`, `classifyWedge`, and `classifyMajorTrendReversal` done |
+| Time utils | [`src/utils/time.ts`](../../src/utils/time.ts) | Unix ↔ `TimeString`, and `barIndexAt` for a bar open time | done |
 | Summary helper | [`src/utils/summary.ts`](../../src/utils/summary.ts) | `fillSummary(template, vars)` | done (`util-fill-summary`) |
-| Swing helper | `src/utils/swings.ts` *(planned)* | Shared pivot / swing detection | deferred (`util-swings`) |
+| Swing helper | [`src/utils/swings.ts`](../../src/utils/swings.ts) | Shared pivot / swing detection | done (`util-swings`); used by `findSwingLegs`. `classifyTradingRange` reads those legs through `readSwingLegs` |
+| Gap helpers | [`src/utils/gapBody.ts`](../../src/utils/gapBody.ts), [`src/utils/bodyGaps.ts`](../../src/utils/bodyGaps.ts) | Compared body across a gap, and adjacent gap list | done (`util-gap-body`, `util-body-gaps`); used by `classifyReversalSignal` and `classifyBodyGap` |
+| Swing-leg helper | [`src/utils/swingLegs.ts`](../../src/utils/swingLegs.ts) | Consecutive swings as legs | done (`util-swing-legs`); used by `classifySwingLeg` |
+| Setup-measure helper | [`src/utils/setupMeasure.ts`](../../src/utils/setupMeasure.ts) | Planned reward/risk, fill outcome, win-rate summary | done (`util-setup-measure`); returns plain data, not `AnalysisResult` |
+| Measure functions | `src/analyze/measure*.ts` | `SetupReport` over classify setups | done for second-entry, failed-breakout, breakout-pullback, wedge, major-trend-reversal, and double-top-bottom |
 | Function specs | [`docs/spec/`](../spec/) | Per-function algorithms and templates | seed exists |
 | Generator skill | [`.cursor/skills/kline-analyze-fn/`](../../.cursor/skills/kline-analyze-fn/SKILL.md) | Scaffold new analyzers from intent | done |
 
@@ -126,7 +130,7 @@ flowchart TB
   skill -.->|"generates"| fns
 ```
 
-Function index: [specification § Per-function specs](../specification/analyze.md#per-function-specs-index-only) (`classifyReversalSignal` and `classifySwingTrend` implemented).
+Function index: [specification § Per-function specs](../specification/analyze.md#per-function-specs-index-only) (`classifyReversalSignal`, `classifySwingTrend`, `classifyTradingRange`, `classifyPullback`, `classifyTrendWithPullbacks`, `classifyTrendBar`, `classifyDoji`, `classifyInsideBar`, `classifyOutsideBar`, `classifySwingLeg`, `classifyBodyGap`, `classifyChannel`, `classifyExtremeRetest`, `classifyTrendlineBreak`, `classifyRangeBreak`, `classifyFollowThrough`, `classifyFailedBreakout`, `classifySecondEntry`, `classifySignalBar`, `classifyClimax`, `classifyBreakoutPullback`, `classifyMicroDouble`, `classifyDoubleTopBottom`, `classifyWedge`, and `classifyMajorTrendReversal` implemented). [`brooks-shared.md`](../spec/brooks-shared.md) records the shared contract. Pickup order: [`../tasks/README.md`](../tasks/README.md).
 
 ---
 
@@ -222,7 +226,7 @@ Mapped from [specification Acceptance (B1–B4)](../specification/analyze.md#acc
 
 | Risk / debt | Impact | Mitigation |
 |-------------|--------|------------|
-| Swing pivot helper still deferred | No shared `src/utils/swings.ts` yet | Open `util-swings` only when a function needs pivots. `classifySwingTrend` uses reversal K2 nodes instead |
+| Trend edges from swing legs | `classifySwingTrend` merges `findSwingLegs` (via `findSwings`) | Broad `classifyTradingRange` segments are horizontal runs of those same legs, and skip any leg already inside an extended trend. Trend segments open on swing legs, not reversal K2. Trends may overlap a trading-range span (no hole cut). Pullback may be one bar, one opposite leg, or a nested opposite swing trend |
 | Label/level sprawl without sync | Breaking or ambiguous consumers | Enforce same-change updates to skill + `src/types` + `docs/spec` |
 | Caller forgets instrument context | Chart/UI must carry `symbol` / `timeframe` separately | Documented boundary in Data + Analyze + Chart specs |
 
@@ -250,6 +254,8 @@ Mapped from [specification Acceptance (B1–B4)](../specification/analyze.md#acc
 - Data architecture (bar loading): [`data.md`](data.md)
 - Seed function spec: [`../spec/classify-swing-trend.md`](../spec/classify-swing-trend.md)
 - Reversal function spec: [`../spec/classify-reversal-signal.md`](../spec/classify-reversal-signal.md)
+- Pullback function spec: [`../spec/classify-pullback.md`](../spec/classify-pullback.md)
+- Trend-with-pullbacks function spec: [`../spec/classify-trend-with-pullbacks.md`](../spec/classify-trend-with-pullbacks.md)
 - Tasks: [`../project-tasks.md`](../project-tasks.md) (FR-2 this phase scaffolding: done)
 - Skill: [`.cursor/skills/kline-analyze-fn/SKILL.md`](../../.cursor/skills/kline-analyze-fn/SKILL.md)
 - Types contract: [`.cursor/skills/kline-analyze-fn/references/types-contract.md`](../../.cursor/skills/kline-analyze-fn/references/types-contract.md)

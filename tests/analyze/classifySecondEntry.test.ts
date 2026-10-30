@@ -57,6 +57,8 @@ describe("classifySecondEntry", () => {
     expect(() => classifySecondEntry(bars, { swingSpan: 0 })).toThrow(TypeError);
     expect(() => classifySecondEntry(bars, { majorSwingSpan: 0 })).toThrow(TypeError);
     expect(() => classifySecondEntry(bars, { entrySwingSpan: 0 })).toThrow(TypeError);
+    expect(() => classifySecondEntry(bars, { entryCount: 0 })).toThrow(/entryCount/);
+    expect(() => classifySecondEntry(bars, { entryCount: 1.5 })).toThrow(/entryCount/);
   });
 
   it("returns unclear when there is no second with-trend hinge", () => {
@@ -106,5 +108,25 @@ describe("classifySecondEntry", () => {
   it("emits low2 on the second hinge of a bear ABC pullback", () => {
     const result = classifySecondEntry(abcBear());
     expect(result.results.some((item) => item.name === "low2")).toBe(true);
+  });
+
+  it("emits the earlier high1 when entryCount is 1", () => {
+    const bars = abcBull();
+    const first = classifySecondEntry(bars, { entryCount: 1 });
+    const second = classifySecondEntry(bars);
+    expect(first.results.map((item) => item.name)).toEqual(["high1"]);
+    expect(first.summary).toBe("entries=1; last=high1");
+    expect(first.results[0]!.range.end! < second.results[0]!.range.end!).toBe(true);
+  });
+
+  it("returns unclear when the window has fewer hinges than entryCount", () => {
+    const result = classifySecondEntry(abcBull(), { entryCount: 3 });
+    expect(result.results.map((item) => item.name)).toEqual(["unclear"]);
+    expect(result.summary).toBe("entries=0; last=unclear");
+  });
+
+  it("emits low1 when entryCount is 1 on a bear ABC pullback", () => {
+    const result = classifySecondEntry(abcBear(), { entryCount: 1 });
+    expect(result.results.map((item) => item.name)).toEqual(["low1"]);
   });
 });

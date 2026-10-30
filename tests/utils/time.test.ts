@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Bar } from "../../src/types/bars.js";
 import {
+  barIndexAt,
   toEast8TimeString,
   toTimeString,
   toUnixSeconds,
@@ -45,5 +47,22 @@ describe("toEast8TimeString", () => {
 
   it("rejects garbage", () => {
     expect(() => toEast8TimeString("not-a-time")).toThrow(/Invalid time/);
+  });
+});
+
+describe("barIndexAt", () => {
+  const bars: Bar[] = [
+    { time: 1_700_000_000, open: 1, high: 2, low: 1, close: 2 },
+    { time: 1_700_000_060, open: 2, high: 3, low: 2, close: 3 },
+  ];
+
+  it("returns the bar whose open time matches", () => {
+    expect(barIndexAt(bars, toTimeString(bars[1]!.time), "example")).toBe(1);
+  });
+
+  it("throws when the time is not in the bars", () => {
+    expect(() => barIndexAt(bars, "2020-01-01T00:00:00Z", "example")).toThrow(
+      "example: segment time is not in bars",
+    );
   });
 });

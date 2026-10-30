@@ -83,9 +83,12 @@ Split price-action detection into multiple analysis functions. Each may depend o
 |------------|------|------|
 | `classifySwingTrend` | [`spec/classify-swing-trend.md`](spec/classify-swing-trend.md) | implemented |
 | `classifyReversalSignal` | [`spec/classify-reversal-signal.md`](spec/classify-reversal-signal.md) | implemented |
+| `classifyTradingRange` | [`spec/classify-trading-range.md`](spec/classify-trading-range.md) | implemented |
+| `classifyPullback` | [`spec/classify-pullback.md`](spec/classify-pullback.md) | implemented |
+| `classifyTrendWithPullbacks` | [`spec/classify-trend-with-pullbacks.md`](spec/classify-trend-with-pullbacks.md) | implemented |
 
 This phase (types + scaffolding): `scaffold-types`, `util-fill-summary`, `scaffold-analyze-module` — **done** (see [`project-tasks.md`](project-tasks.md)).  
-`classifyReversalSignal` and `classifySwingTrend` are implemented. `util-swings` stays deferred.
+`classifyReversalSignal`, `classifySwingTrend`, `classifyTradingRange`, `classifyPullback`, and `classifyTrendWithPullbacks` are implemented. `util-swings` is implemented for `classifyTradingRange`.
 
 ### Acceptance
 
@@ -126,7 +129,7 @@ Show the same query window’s candles and overlay analysis markers (`results[].
 
 | # | Criterion |
 |---|-----------|
-| C1 | Given fixture bars + fixed `AnalysisResult`, `layer_drawings` marks match `results[].levels` entries 1:1 |
+| C1 | Given fixture bars + fixed `AnalysisResult`, drawn level dots match `results[].levels` 1:1, except a reversal signal draws only its `K2`, and `classifySwingTrend` omits trend endpoints (`H1`–`H3` / `L1`–`L3` still draw) |
 | C2 | Query window (symbol / timeframe / range) matches the candles from `setBars` |
 | C3 | Analysis packages remain importable without chart dependencies |
 | C4 | Window refresh updates candles via `setBars` only; playback status is never set |
@@ -164,7 +167,7 @@ Tasks: Linear [JIU-301](https://linear.app/jiuong/issue/JIU-301/fr-3-chart-k-lin
 | FR-1 fetch | `scaffold-fetchBars` (done), `pull-bars-cli-fixture` (done) |
 | FR-1 persist product | `persist-store-schema`, `persist-coverage`, `persist-read-through` (done); `persist-local-bars` superseded |
 | FR-2 this phase | `scaffold-types`, `util-fill-summary`, `scaffold-analyze-module` (done) |
-| FR-2 analyzers | `impl-classify-reversal-signal`, `impl-classify-swing-trend` (done); `util-swings` (deferred) |
+| FR-2 analyzers | `impl-classify-reversal-signal`, `impl-classify-swing-trend`, `impl-classify-trading-range`, `util-swings` (done) |
 | FR-3 | Linear [JIU-301](https://linear.app/jiuong/issue/JIU-301/fr-3-chart-k-line-analyze); `chart-dep-kline-chart`…`chart-adapter-host`, `page-bars-api`, `page-review-host`; `viz-third-party-chart` superseded |
 | Docs baseline | `docs-goal-requirements` (done) |
 | Module specs | `docs-specification-modules` (done) — [`specification/`](specification/) |

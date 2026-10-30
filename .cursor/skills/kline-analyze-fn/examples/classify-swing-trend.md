@@ -4,7 +4,7 @@
 
 Use this as the pattern when the user says:
 
-> Split the window into trend segments using reversal K2 nodes. A bull reversal opens a bull trend; a bear reversal opens a bear trend. The last segment ends on the last bar.
+> Split the window into trend segments by merging `findSwingLegs`. Same-direction legs chain when a pullback holds the prior extreme and the next impulse makes a new extreme. A covering opposite leg ends the prior trend and opens the reverse.
 
 ## Minimal capture
 
@@ -13,12 +13,12 @@ Use this as the pattern when the user says:
 | `functionId` | `classifySwingTrend` |
 | Spec path | `docs/spec/classify-swing-trend.md` |
 | Input | `Bar[]` |
-| Labels | `bull_trend` \| `bear_trend` \| `unclear` |
-| Levels | `H1` `L1` (segment endpoints) |
-| Deps | `classifyReversalSignal`, time utils, `fillSummary` (caller supplies bars) |
+| Labels | `bull_trend` \| `bear_trend` \| `minor_bull_trend` \| `minor_bear_trend` \| `trading_range` \| `unclear` |
+| Levels | Endpoints `BullTrendStart`/`BullTrendEnd` / `BearTrendStart`/`BearTrendEnd`; entry marks `H1`–`H3` / `L1`–`L3`; range uses `RangeHigh`/`RangeLow` |
+| Deps | `findSwingLegs`, `entryCounts`, time utils, `fillSummary` (caller supplies bars) |
 
 ## Agent reminder
 
-1. Write/update `docs/spec/classify-swing-trend.md` first if intent changes.
-2. Do not reimplement the reversal scan; call `classifyReversalSignal`.
-3. Follow [generation-checklist.md](../references/generation-checklist.md).
+- Do not open segments on `classifyReversalSignal` K2 nodes.
+- Pullback may be one bar, one opposite leg, or a recursive opposite swing trend.
+- Opposite touch/cross of the guarded extreme → prior trend ends; that opposite leg opens the new trend.

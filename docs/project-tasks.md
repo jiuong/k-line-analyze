@@ -154,7 +154,8 @@ No FR-2 Linear parent. Specs are done. Implementation progress is in [`tasks/REA
 | util-setup-prices | Entry, stop, and target prices | done | `src/utils/setupPrices.ts` `entryBeyond`, `stopBeyond`, `targetFrom`. Omitted tick leaves the extreme. `targetFrom` forwards a given price. No `AnalysisResult` |
 | impl-classify-follow-through | Trend-bar run after a range break | done | `src/analyze/classifyFollowThrough.ts`. Label `follow_through`. Levels `BreakBar` / `FollowBar` / `BrokenEdge`. Minimum length is `FOLLOW_THROUGH_BARS`. No chart sidebar |
 | impl-classify-failed-breakout | Range break that returns inside | done | `src/analyze/classifyFailedBreakout.ts`. Label `failed_breakout`. No matching `follow_through`. Levels `BreakBar` / `ReturnBar` / `SignalBar` / `Entry` / `Stop` / `Target`. Target is the opposite range edge. No chart sidebar |
-| impl-classify-second-entry | Pullback-window H2/L2 with fib extension TPs | done | `classifySecondEntry` + `findSecondEntriesFrom`. Only `high2`/`low2`. P1–P3 / TP1–TP4. SwingTrend attaches `H2`/`L2`. No chart sidebar |
+| impl-classify-second-entry | Pullback-window H2/L2 with fib extension TPs | done | `classifySecondEntry` + `findSecondEntriesFrom`. Default `high2`/`low2`. P1–P3 / TP1–TP4. SwingTrend attaches `H2`/`L2`. No chart sidebar |
+| se-entry-count | Second entry ordinal switch | done | `entryCount` integer `>= 1`, default 2. Emits `highN`/`lowN`. Review `H/L` input. SwingTrend stays `H2`/`L2`. Linear [JIU-329](https://linear.app/jiuong/issue/JIU-329/second-entry入场序号开关-entrycount) |
 | impl-classify-signal-bar | Qualified swing signal bars | done | `src/analyze/classifySignalBar.ts`. Labels `bull_signal_bar` / `bear_signal_bar`. Close in the outer third and adverse tail at most `0.25` of the range. No chart sidebar |
 | impl-classify-climax | Trend-bar run or doubled leg | done | `src/analyze/classifyClimax.ts`. Labels `buy_climax` / `sell_climax`. Three trend bars, or a later leg at least twice the previous. No chart sidebar |
 | impl-classify-breakout-pullback | Pullback to a broken edge after follow-through | done | `src/analyze/classifyBreakoutPullback.ts`. Label `breakout_pullback`. First opposite leg within `0.25` of average bar range. No chart sidebar |
@@ -191,7 +192,7 @@ No FR-2 Linear parent. Task index: [`tasks/README.md`](tasks/README.md) § P7. S
 |----|------|--------|-------|
 | util-setup-measure | Reward/risk, outcome, and win-rate summary | done | `src/utils/setupMeasure.ts`. Direction stays `up` / `down`. Writes `docs/spec/setup-measure.md` |
 | neckline-on-double | Emit the double's neckline | done | `Neckline` on every `classifyDoubleTopBottom` pair. No `Target` on the atom |
-| impl-measure-second-entry | Measure high2 / low2 with TP1 | done | Depends on `util-setup-measure`. Target is `TP1` |
+| impl-measure-second-entry | Measure highN / lowN with TP1 | done | Depends on `util-setup-measure`. Target is `TP1`. `basis` follows `entryCount` |
 | impl-measure-failed-breakout | Measure failed breakouts | done | Depends on `util-setup-measure`. Target stays the opposite range edge |
 | impl-measure-breakout-pullback | Measure breakout pullbacks | done | Depends on `util-setup-measure` |
 | impl-measure-wedge | Measure triggered wedges | done | Depends on `util-setup-measure`. Skips wedges with no `Entry`. Copies `role` onto `context` |

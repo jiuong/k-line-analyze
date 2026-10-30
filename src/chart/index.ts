@@ -8,6 +8,8 @@ export {
   ANALYSIS_OVERLAY_ID,
   collectLevelMarks,
   createAnalysisRenderer,
+  displayMarkText,
   drawAnalysisOverlay,
+  drawSetupReports,
 } from "./overlayAnalysis.js";
-export type { LevelMark } from "./overlayAnalysis.js";
+export type { LevelMark, OverlayInputs } from "./overlayAnalysis.js";

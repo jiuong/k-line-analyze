@@ -66,15 +66,57 @@ main {
   min-height: 0;
 }
 
-#chart-host {
+#chart-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
   min-height: 0;
-  height: 100%;
+}
+
+#chart-host {
+  flex: 1;
+  min-height: 0;
 }
 
 #chart {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+#setup-trades {
+  flex: 0 0 auto;
+  max-height: 220px;
+  overflow: auto;
+  border-top: 1px solid #30363d;
+  background: #0e1116;
+}
+
+#setup-trades table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+#setup-trades th,
+#setup-trades td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #21262d;
+  text-align: left;
+}
+
+#setup-trades th {
+  position: sticky;
+  top: 0;
+  background: #161b22;
+  color: #8b949e;
+  font-weight: 600;
+}
+
+#setup-trades .empty {
+  margin: 8px;
+  color: #8b949e;
 }
 
 aside {
@@ -93,6 +135,15 @@ aside h2 {
   align-items: center;
   gap: 8px;
   margin: 4px 0;
+}
+
+#analyzers .subcheck {
+  margin-left: 22px;
+}
+
+#analyzers input[data-entry-count] {
+  width: 4.5em;
+  padding: 2px 6px;
 }
 
 aside p {

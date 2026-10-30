@@ -8,6 +8,7 @@ K-line (candlestick) analysis helpers driven by the local MT5 microservice bars 
 - **Requirements:** [`docs/requirements.md`](docs/requirements.md) — FR-1 data (fetch + local persist), FR-2 composable analyzers, FR-3 third-party chart overlays.
 - **Module specs:** [`docs/specification/`](docs/specification/) — data / analyze / chart module design.
 - **Architecture:** [`docs/architecture/`](docs/architecture/) — module architecture (data + analyze + chart).
+- **Brooks entry theory:** [`docs/theory/entry-setups.md`](docs/theory/entry-setups.md) — why each measure setup enters, stops, and targets (with book chapter citations).
 
 ## Setup
 
@@ -45,7 +46,7 @@ npm test
 npm run dev
 ```
 
-Opens a Vite canvas on `http://127.0.0.1:5173`. Symbol and timeframe lists come from `../trading-playback/config/trading.json` (`GET /api/catalog`). From / To use the calendar control and are sent as UTC Unix seconds. Bars load through `GET /api/bars` (`loadBarsWithMeta`: local hit, otherwise MT5, offline when local coverage exists). Analysis stays off until a sidebar checkbox is enabled (`classifySwingTrend`, `classifyReversalSignal`). Pan, zoom, and the crosshair come from `@trading-playback/kline-chart` via `attachPointerInteraction`. Sibling checkouts required: `../trading-playback` (chart packages built, plus `config/trading.json`). Chart code is imported only from `src/chart/`.
+Opens a Vite canvas on `http://127.0.0.1:5173`. Symbol and timeframe lists come from `../trading-playback/config/trading.json` (`GET /api/catalog`). From / To use the calendar control and are sent as UTC Unix seconds. Bars load through `GET /api/bars` (`loadBarsWithMeta`: local hit, otherwise MT5, offline when local coverage exists). Analysis stays off until a sidebar checkbox is enabled. Each measure/classify appears once; checking it draws that function's full results only (no parent/child cascade). Swing trend has Small-cycle trends and Entry count toggles, both off by default. Pan, zoom, and the crosshair come from `@trading-playback/kline-chart` via `attachPointerInteraction`. Sibling checkouts required: `../trading-playback` (chart packages built, plus `config/trading.json`). Chart code is imported only from `src/chart/`.
 
 ## Generate an analysis function
 

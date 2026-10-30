@@ -5,6 +5,7 @@ import type {
   Level,
   LevelName,
 } from "../types/analysis.js";
+import { withGapBody } from "../utils/gapBody.js";
 import { fillSummary } from "../utils/summary.js";
 import { toTimeString } from "../utils/time.js";
 
@@ -15,13 +16,11 @@ const SUMMARY_TEMPLATE =
 
 type Direction = "bull" | "bear";
 
-type ScanAction =
-  | { kind: "slide" }
-  | { kind: "jump"; index: number };
-
 /**
- * Bull and bear reversal scan.
- * K1 and K2 are adjacent. After a confirm, the next search starts at the following bar.
+ * Reversal scan over adjacent windows.
+ * A gap is the next bar's body: gap up opens at the previous high, gap down at the previous low.
+ * Bull/bear pivots use K1+K2+K3. When K3 engulfs K2, a large color-side excess uses that bar's color; a small excess reads the next bar's one-sided break.
+ * After a confirm, the next search starts at that K2.
  */
 export function classifyReversalSignal(
   bars: Bar[],
@@ -36,7 +35,7 @@ export function classifyReversalSignal(
     return assemble([windowResult("unclear", bars)]);
   }
 
-  const signals = keepLatestOfEachRun(scanSignals(bars));
+  const signals = keepFirstOfEachRun(scanSignals(bars));
   if (signals.length === 0) {
     return assemble([windowResult("no_reversal", bars)]);
   }
@@ -47,72 +46,161 @@ function scanSignals(bars: Bar[]): AnalyzeResult[] {
   const signals: AnalyzeResult[] = [];
   let i = 0;
 
-  while (i <= bars.length - 2) {
-    const k1 = bars[i]!;
-    const direction = setupDirection(k1);
-    if (direction === null) {
+  while (i <= bars.length - 3) {
+    const resolved = resolveWindow(bars, i);
+    if (resolved === null) {
       i += 1;
       continue;
     }
-
-    const k2 = bars[i + 1]!;
-    if (!isValidK2(direction, k1, k2)) {
-      i += 1;
-      continue;
+    for (const direction of resolved.directions) {
+      signals.push(toSignal(direction, bars[i]!, bars[i + 1]!, resolved.confirm));
     }
-
-    const action = scanAfterK2(bars, i, direction, k2, signals);
-    i = action.kind === "slide" ? i + 1 : action.index;
+    i += 1;
   }
 
   return signals;
 }
 
-/** Adjacent signals with the same name collapse to the later one. */
-function keepLatestOfEachRun(signals: AnalyzeResult[]): AnalyzeResult[] {
+/** Adjacent signals with the same name collapse to the earlier one. */
+function keepFirstOfEachRun(signals: AnalyzeResult[]): AnalyzeResult[] {
   const kept: AnalyzeResult[] = [];
   for (const signal of signals) {
     const previous = kept[kept.length - 1];
-    if (previous && previous.name === signal.name) {
-      kept[kept.length - 1] = signal;
-      continue;
-    }
+    if (previous && previous.name === signal.name) continue;
     kept.push(signal);
   }
   return kept;
 }
 
-function scanAfterK2(
+/**
+ * Engulf skips bull/bear pivots. A color-side excess above half the covered bar's range
+ * uses that bar's color. A smaller excess reads the next bar, or repeats when
+ * that next bar also engulfs. Otherwise a bull pivot is bull and a bear pivot is bear.
+ */
+function resolveWindow(
   bars: Bar[],
-  k1Index: number,
-  direction: Direction,
-  k2: Bar,
-  signals: AnalyzeResult[],
-): ScanAction {
-  const k1 = bars[k1Index]!;
+  i: number,
+): { directions: Direction[]; confirm: Bar } | null {
+  const k1 = withGapBody(bars[i - 1], bars[i]!);
+  const k2 = withGapBody(bars[i], bars[i + 1]!);
+  const k3 = withGapBody(bars[i + 1], bars[i + 2]!);
+  if (engulfs(k3, k2)) return resolveEngulf(bars, i + 2);
 
-  for (let j = k1Index + 2; j < bars.length; j += 1) {
-    const bar = bars[j]!;
-    if (breaksExtreme(direction, k2, bar)) {
-      return { kind: "jump", index: j - 1 };
-    }
-    if (isInsideBar(bar, bars[j - 1]!)) {
-      continue;
-    }
-    if (confirms(direction, k2, bar)) {
-      signals.push(toSignal(direction, k1, k2, bar));
-      return { kind: "jump", index: j + 1 };
-    }
-  }
-
-  return { kind: "slide" };
+  const directions = matchWindow(k1, k2, k3);
+  if (directions.length === 0) return null;
+  return { directions, confirm: bars[i + 2]! };
 }
 
-/** Bearish K1 starts a bull reversal. Bullish K1 starts a bear reversal. */
-function setupDirection(bar: Bar): Direction | null {
-  if (bar.close < bar.open) return "bull";
-  if (bar.close > bar.open) return "bear";
+/**
+ * `index` is the engulfing bar. Its color picks which side of the covered bar
+ * counts. A doji cannot pick a side.
+ */
+function resolveEngulf(
+  bars: Bar[],
+  index: number,
+): { directions: Direction[]; confirm: Bar } | null {
+  const outer = withGapBody(bars[index - 1], bars[index]!);
+  const inner = withGapBody(bars[index - 2], bars[index - 1]!);
+  const direction = candleDirection(outer);
+  if (direction === null) return null;
+
+  const excess =
+    direction === "bull" ? outer.high - inner.high : inner.low - outer.low;
+  const length = inner.high - inner.low;
+  if (excess > length * 0.5) {
+    return { directions: [direction], confirm: bars[index]! };
+  }
+
+  const nextBar = bars[index + 1];
+  if (!nextBar) return null;
+  const next = withGapBody(bars[index], nextBar);
+  if (engulfs(next, outer)) return resolveEngulf(bars, index + 1);
+
+  const breakHigh = next.high > outer.high;
+  const breakLow = next.low < outer.low;
+  if (breakHigh === breakLow) return null;
+  return { directions: [breakHigh ? "bull" : "bear"], confirm: nextBar };
+}
+
+/** Bullish close is bull. Bearish close is bear. A doji is not a signal. */
+function candleDirection(bar: Bar): Direction | null {
+  if (bar.close > bar.open) return "bull";
+  if (bar.close < bar.open) return "bear";
   return null;
+}
+
+/** Strict cover on both sides. */
+function engulfs(outer: Bar, inner: Bar): boolean {
+  return outer.high > inner.high && outer.low < inner.low;
+}
+
+/** Bull pivot is bull. Bear pivot is bear. Called only when K3 does not engulf K2. */
+function matchWindow(k1: Bar, k2: Bar, k3: Bar): Direction[] {
+  const directions: Direction[] = [];
+  if (k1.high > k2.high && k3.high > k2.high) directions.push("bull");
+  if (k1.low < k2.low && k3.low < k2.low) directions.push("bear");
+  return directions;
+}
+
+/*
+Suspended geometry. Kept for reference; the scan uses matchWindow only.
+
+function matchTriple(k1: Bar, k2: Bar, k3: Bar): Direction | null {
+  return agree(
+    legacyDirection(k1, k2, k3),
+    insideDirection(k1, k2, k3),
+    engulfDirection(k1, k2, k3),
+  );
+}
+
+function agree(
+  ...directions: Array<Direction | null>
+): Direction | null {
+  let chosen: Direction | null = null;
+  for (const direction of directions) {
+    if (direction === null) continue;
+    if (chosen === null) {
+      chosen = direction;
+      continue;
+    }
+    if (chosen !== direction) return null;
+  }
+  return chosen;
+}
+
+// K1 color is suspended. Direction is whichever K2/K3 geometry matches.
+function legacyDirection(k1: Bar, k2: Bar, k3: Bar): Direction | null {
+  return agree(
+    legacyGeometry("bull", k1, k2, k3),
+    legacyGeometry("bear", k1, k2, k3),
+  );
+}
+
+function legacyGeometry(
+  direction: Direction,
+  k1: Bar,
+  k2: Bar,
+  k3: Bar,
+): Direction | null {
+  if (!isValidK2(direction, k1, k2)) return null;
+  if (!confirms(direction, k2, k3)) return null;
+  return direction;
+}
+
+function insideDirection(k1: Bar, k2: Bar, k3: Bar): Direction | null {
+  if (!isInside(k2, k1)) return null;
+  return breakoutDirection(k3.high > k1.high, k3.low < k1.low);
+}
+
+function engulfDirection(k1: Bar, k2: Bar, k3: Bar): Direction | null {
+  if (!isEngulf(k2, k1)) return null;
+  return breakoutDirection(k3.high > k2.high, k3.low < k2.low);
+}
+
+// One side only. Breaking both extremes, or neither, is not a signal.
+function breakoutDirection(breakHigh: boolean, breakLow: boolean): Direction | null {
+  if (breakHigh === breakLow) return null;
+  return breakHigh ? "bull" : "bear";
 }
 
 function isValidK2(direction: Direction, k1: Bar, k2: Bar): boolean {
@@ -122,21 +210,23 @@ function isValidK2(direction: Direction, k1: Bar, k2: Bar): boolean {
   return k2.high > k1.high && k2.low >= k1.low;
 }
 
-function breaksExtreme(direction: Direction, k2: Bar, bar: Bar): boolean {
-  if (direction === "bull") return bar.low < k2.low;
-  return bar.high > k2.high;
-}
-
-function isInsideBar(bar: Bar, prev: Bar): boolean {
-  return bar.high <= prev.high && bar.low >= prev.low;
-}
-
 function confirms(direction: Direction, k2: Bar, bar: Bar): boolean {
   if (direction === "bull") {
     return bar.high > k2.high && bar.low > k2.low;
   }
   return bar.high < k2.high && bar.low < k2.low;
 }
+
+function isInside(inner: Bar, outer: Bar): boolean {
+  return inner.high <= outer.high && inner.low >= outer.low;
+}
+
+function isEngulf(outer: Bar, inner: Bar): boolean {
+  const covers = outer.high >= inner.high && outer.low <= inner.low;
+  const wider = outer.high > inner.high || outer.low < inner.low;
+  return covers && wider;
+}
+*/
 
 function toSignal(
   direction: Direction,
@@ -153,7 +243,7 @@ function toSignal(
     },
     levels: [
       level("K1", k1, bull ? k1.high : k1.low),
-      level("K2", k2, bull ? k2.low : k2.high),
+      level("K2", k2, bull ? k2.high : k2.low),
       level("Confirm", confirm, bull ? confirm.high : confirm.low),
     ],
   };

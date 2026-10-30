@@ -17,7 +17,7 @@ Render the query window’s candlesticks and overlay analysis geometry (`results
 
 | Priority | Goal | Notes |
 |----------|------|-------|
-| 1 | Correct overlays | Each `results[].levels` entry maps 1:1 to a drawn mark; time = bar open |
+| 1 | Correct overlays | Drawn marks follow the chart spec (1:1 levels, with reversal `K2`-only and swing-trend endpoint omissions); time = bar open |
 | 2 | Window fidelity | Candles from `setBars` match the same bars / instrument context used for analysis |
 | 3 | Dependency isolation | Chart package imported only inside the adapter; Analyze stays chart-free |
 | 4 | Simple refresh | Static snapshot or replace bars via `setBars`; no playback state machine |
@@ -98,12 +98,12 @@ Contract detail: [specification § Integration boundary](../specification/chart.
 
 | Building block | Path | Responsibility | Status |
 |----------------|------|----------------|--------|
-| Chart adapter entry | [`src/chart/host.ts`](../../src/chart/host.ts) | `mount` / `unmount`, `setBars`, `setResults` | done |
+| Chart adapter entry | [`src/chart/host.ts`](../../src/chart/host.ts) | `mount` / `unmount`, `setBars`, `setResults`, `setReports` | done |
 | Bar mapper | [`src/chart/mapBars.ts`](../../src/chart/mapBars.ts) | `Bar[]` + `TimeFrame` → `KlineBar[]` (`+08:00`) | done |
-| Overlay renderer | [`src/chart/overlayAnalysis.ts`](../../src/chart/overlayAnalysis.ts) | `AnalysisResult[]` → `layer_drawings` | done |
+| Overlay renderer | [`src/chart/overlayAnalysis.ts`](../../src/chart/overlayAnalysis.ts) | `AnalysisResult[]` + `SetupReport[]` → `layer_drawings` | done |
 | Chart time helper | [`src/utils/time.ts`](../../src/utils/time.ts) `toEast8TimeString` | UTC Unix / `TimeString` → East-8 ISO | done |
 | Package dependency | [`package.json`](../../package.json) | `file:` to kline-chart and shared (`overrides` for `workspace:*`) | done |
-| Review page | [`web/`](../../web/) | Form, canvas, sidebar | done |
+| Review page | [`web/`](../../web/) | Form, canvas, sidebar, setup-trades table | done |
 | Bars dev API | [`src/page/barsHandler.ts`](../../src/page/barsHandler.ts) | `GET /api/bars` → `loadBarsWithMeta` | done |
 | Catalog dev API | [`src/page/catalogMiddleware.ts`](../../src/page/catalogMiddleware.ts) | `GET /api/catalog` → sibling `trading.json` | done |
 | Bar types | [`src/types/bars.ts`](../../src/types/bars.ts) | Input `Bar`, `TimeFrame` | done |
@@ -253,7 +253,7 @@ Mapped from [specification Acceptance (C1–C4)](../specification/chart.md#accep
 
 | ID | Scenario | Measure |
 |----|----------|---------|
-| C1 | Fixture bars + fixed `AnalysisResult` | `layer_drawings` marks match `results[].levels` entries 1:1 (bar-open time after `+08:00` conversion) |
+| C1 | Fixture bars + fixed `AnalysisResult` | `layer_drawings` marks match the chart-spec draw rules (bar-open time after `+08:00` conversion), including omitted swing-trend endpoints |
 | C2 | Query window shown | Candles from `setBars` match bars + caller `symbol` / `timeframe` / range |
 | C3 | Analyze import graph | No chart package under `src/analyze` |
 | C4 | Window refresh | Candles update via `setBars` only; playback status never set |

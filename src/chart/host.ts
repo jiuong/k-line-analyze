@@ -4,6 +4,7 @@ import type {
 } from "@trading-playback/kline-chart";
 import type { AnalysisResult } from "../types/analysis.js";
 import type { Bar, TimeFrame } from "../types/bars.js";
+import type { SetupReport } from "../utils/setupMeasure.js";
 import { mapBarsToKline } from "./mapBars.js";
 import { createAnalysisRenderer } from "./overlayAnalysis.js";
 
@@ -33,8 +34,10 @@ export type ChartHost = {
   ): void;
   /** Replace candles for the window. Does not touch playback status. */
   setBars(bars: readonly Bar[], timeframe: TimeFrame): void;
-  /** Replace overlay inputs and request a redraw. */
+  /** Replace classify overlay inputs and request a redraw. */
   setResults(results: readonly AnalysisResult[]): void;
+  /** Replace measure overlay inputs and request a redraw. */
+  setReports(reports: readonly SetupReport[]): void;
   unmount(): void;
 };
 
@@ -44,6 +47,7 @@ export type ChartHost = {
  */
 export function createChartHost(chart: ChartControls): ChartHost {
   let results: readonly AnalysisResult[] = [];
+  let reports: readonly SetupReport[] = [];
   let unregister: (() => void) | null = null;
 
   return {
@@ -53,7 +57,7 @@ export function createChartHost(chart: ChartControls): ChartHost {
       unregister?.();
       unregister = chart.registerOverlay({
         layerId: "layer_drawings",
-        renderer: createAnalysisRenderer(() => results),
+        renderer: createAnalysisRenderer(() => ({ results, reports })),
       });
     },
     setBars(bars, timeframe) {
@@ -69,10 +73,15 @@ export function createChartHost(chart: ChartControls): ChartHost {
       results = next;
       chart.requestRedraw();
     },
+    setReports(next) {
+      reports = next;
+      chart.requestRedraw();
+    },
     unmount() {
       unregister?.();
       unregister = null;
       results = [];
+      reports = [];
       chart.unmount();
     },
   };

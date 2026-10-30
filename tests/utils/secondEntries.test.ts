@@ -110,6 +110,24 @@ describe("findSecondEntriesFrom", () => {
     }
   });
 
+  it("returns the first hinge when entryCount is 1", () => {
+    const bars = abcBull();
+    const majors = [major("bull_trend", 0, 14)];
+    const first = findSecondEntriesFrom(bars, majors, undefined, { entryCount: 1 });
+    const second = findSecondEntriesFrom(bars, majors, undefined);
+    expect(first).toHaveLength(1);
+    expect(first[0]!.breakIndex).toBeLessThan(second[0]!.breakIndex);
+  });
+
+  it("rejects a non-integer entryCount", () => {
+    const bars = abcBull();
+    expect(() =>
+      findSecondEntriesFrom(bars, [major("bull_trend", 0, 14)], undefined, {
+        entryCount: 0,
+      }),
+    ).toThrow(/entryCount/);
+  });
+
   it("rejects non-integer entrySwingSpan", () => {
     const bars = abcBull();
     expect(() =>

@@ -46,5 +46,7 @@ Detailed requirements: [`requirements.md`](requirements.md).
 | [`specification/`](specification/) | Module specs (data / analyze / chart) |
 | [`architecture/`](architecture/) | Module architecture (structure, runtime, decisions) |
 | [`project-tasks.md`](project-tasks.md) | Local task tracker |
+| [`tasks/README.md`](tasks/README.md) | Brooks atom implementation tasks, by priority |
 | [`spec/`](spec/) | Per-function authoritative specs |
+| [`theory/entry-setups.md`](theory/entry-setups.md) | Brooks 入场形态：入场 / 止损 / 止盈理论与原文出处 |
 | Skill `kline-analyze-fn` | Generator + contracts for new analyzers |

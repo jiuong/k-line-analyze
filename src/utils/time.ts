@@ -1,4 +1,4 @@
-import type { TimeString, UnixSeconds } from "../types/bars.js";
+import type { Bar, TimeString, UnixSeconds } from "../types/bars.js";
 
 /**
  * Parse CLI / analysis time input to UTC Unix seconds.
@@ -28,6 +28,15 @@ export function toUnixSeconds(input: string | number): UnixSeconds {
 
 export function toTimeString(unix: UnixSeconds): TimeString {
   return new Date(unix * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+/** Bar index whose open time formats as `time`. Missing time throws. */
+export function barIndexAt(bars: readonly Bar[], time: string, functionId: string): number {
+  const index = bars.findIndex((bar) => toTimeString(bar.time) === time);
+  if (index < 0) {
+    throw new Error(`${functionId}: segment time is not in bars`);
+  }
+  return index;
 }
 
 const EAST8_OFFSET_MS = 8 * 60 * 60 * 1000;

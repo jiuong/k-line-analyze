@@ -43,7 +43,7 @@
 
 **原文：** *Trends* Ch.10 *Second Entries*；计数基础见 *Ranges* 前言 *Bar Counting Basics: High 1, High 2, Low 1, Low 2*，以及 *Ranges* Ch.17 *Bar Counting: High and Low 1, 2, 3, and 4 Patterns and ABC Corrections*（约 p.259）。
 
-**语境：** 主趋势回调内，逆势腿→顺势腿（或趋势恢复）转折处的顺势相邻突破。同一回调内第 1、2 次为 H1/H2（空头 L1/L2）。例：多头 PB 中 W1/W3 空腿、W2 多腿 → W1→W2 为 H1，W3→新多头为 H2。原子函数**只输出** `high2` / `low2`。
+**语境：** 主趋势回调内，逆势腿→顺势腿（或趋势恢复）转折处的顺势相邻突破。同一回调内第 1、2、3… 次为 H1/H2/H3…（空头 L1/L2/L3…）。例：多头 PB 中 W1/W3 空腿、W2 多腿 → W1→W2 为 H1，W3→新多头为 H2。原子函数按 `entryCount` 只输出该序号（默认 `high2` / `low2`）。
 
 **粒度：** major / always-in 用较粗摆动（默认 `majorSwingSpan=2`）；回调窗内 H1/H2 腿用较细摆动（默认 `entrySwingSpan=1`）。
 
@@ -53,7 +53,7 @@
 
 **止盈：** 回退后的 P1→原冲刺 P2，P3=K1 回调侧极值；`projectFibExtension` 得 TP1@1、TP2@1.272、TP3@1.414、TP4@1.618。测量胜率只用 TP1；图上标注 TP1–TP4，线段覆盖入场 K→离场 K。
 
-**实现：** [classify-second-entry.md](../spec/classify-second-entry.md)；[classify-swing-trend.md](../spec/classify-swing-trend.md) 挂 `H2`/`L2`；测量见 [measure-second-entry.md](../spec/measure-second-entry.md)。
+**实现：** [classify-second-entry.md](../spec/classify-second-entry.md)；[classify-swing-trend.md](../spec/classify-swing-trend.md) 仍只挂 `H2`/`L2`（不读 `entryCount`）；测量见 [measure-second-entry.md](../spec/measure-second-entry.md)。Review 侧栏 `H/L` 数字把 `entryCount` 传给 classify 与 measure。
 
 ---
 

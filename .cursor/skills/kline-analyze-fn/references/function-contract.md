@@ -7,8 +7,10 @@ How to turn an intent into a consistent analyzer.
 ```ts
 export function classifySwingTrend(
   bars: Bar[],
+  options?: { swingSpan?: number },
 ): AnalysisResult<Record<string, never>>;
 ```
+
 
 - Export name = `functionId` (camelCase)
 - File: `src/analyze/<functionId>.ts` (when `src/` exists)
@@ -56,7 +58,7 @@ Rules:
 Example pattern:
 
 ```text
-trends={count}; last={lastName} from={from} to={to}
+trends={count}; minor={minor}; ranges={ranges}; last={lastName} from={from} to={to}
 ```
 
 Reuse `fillSummary(template, vars)` from `src/utils/summary.ts` (missing/`null`/`undefined` keys throw).

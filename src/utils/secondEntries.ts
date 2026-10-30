@@ -20,7 +20,12 @@ export type SecondEntryHit = {
 export type SecondEntryFromPartsOptions = {
   tickSize?: number;
   /**
-   * Swing span for pullback-window / H1–H2 hinge legs.
+   * Which with-trend hinge to emit inside each pullback window.
+   * `1` is the first, `2` the second. Integer `>= 1`. Default `2`.
+   */
+  entryCount?: number;
+  /**
+   * Swing span for pullback-window hinge legs.
    * Default `1`. Majors are supplied by the caller (often coarser).
    */
   entrySwingSpan?: number;
@@ -32,11 +37,36 @@ export type SecondEntryFromPartsOptions = {
   functionId?: string;
 };
 
+const COUNTED_ENTRY = /^(high|low)([1-9]\d*)$/;
+
+/** Result label for the Nth pullback-window entry (`high2`, `low4`, …). */
+export function countedEntryLabel(
+  bull: boolean,
+  count: number,
+): `high${number}` | `low${number}` {
+  return bull ? `high${count}` : `low${count}`;
+}
+
+/** `high` / `low` when `name` is a counted entry label; otherwise undefined. */
+export function countedEntrySide(name: string): "high" | "low" | undefined {
+  const match = COUNTED_ENTRY.exec(name);
+  if (!match) return undefined;
+  return match[1] === "high" ? "high" : "low";
+}
+
+/** Overlay shorthand: `high4` → `H4`, `low2` → `L2`. */
+export function countedEntryShort(name: string): string | undefined {
+  const match = COUNTED_ENTRY.exec(name);
+  if (!match) return undefined;
+  return `${match[1] === "high" ? "H" : "L"}${match[2]}`;
+}
+
 /**
- * H2/L2 from major trends + swing legs.
+ * Pullback-window entries from major trends + swing legs.
  * Each with-trend impulse opens a pullback window until the next with-trend
  * leg that makes a strict new extreme; adverse→with-trend hinges inside
- * that window are H1, H2, … — only the 2nd is returned.
+ * that window are counted in order. Only hinge number `entryCount`
+ * (default 2) is returned.
  *
  * Legs use `entrySwingSpan` (default 1); `majors` come from the caller
  * (typically `classifySwingTrend` at span 2).
@@ -51,6 +81,7 @@ export function findSecondEntriesFrom(
     throw new TypeError("findSecondEntriesFrom: bars must be an array");
   }
   const id = options?.functionId ?? "findSecondEntriesFrom";
+  const entryCount = resolveEntryCount(options);
   const entrySpan = resolveEntrySwingSpan(options);
   const tick = resolveTick(options?.tickSize);
   const legs = findSwingLegs(bars, entrySpan);
@@ -75,8 +106,8 @@ export function findSecondEntriesFrom(
         const hit = entryAtHinge(bars, hinge.withTrend, bull, tick);
         if (hit) counted.push(hit);
       }
-      if (counted.length < 2) continue;
-      const second = counted[1]!;
+      if (counted.length < entryCount) continue;
+      const chosen = counted[entryCount - 1]!;
       // Impulse must sit on a matching major; break bar must still be inside that major.
       const parent = majorSpans.find(
         (major) =>
@@ -85,14 +116,14 @@ export function findSecondEntriesFrom(
           window.impulse.endIndex <= major.end,
       );
       if (!parent) continue;
-      if (second.breakIndex < parent.start || second.breakIndex > parent.end) continue;
+      if (chosen.breakIndex < parent.start || chosen.breakIndex > parent.end) continue;
 
       const protective = resolveProtectiveImpulse(
         bars,
         legs,
         window.impulse,
         bull,
-        second.breakIndex,
+        chosen.breakIndex,
       );
       const direction = bull ? "up" : "down";
       const stop = stopBeyond(
@@ -100,15 +131,15 @@ export function findSecondEntriesFrom(
         direction,
         tick > 0 ? tick : undefined,
       );
-      const stopOk = bull ? stop < second.entryPrice : stop > second.entryPrice;
+      const stopOk = bull ? stop < chosen.entryPrice : stop > chosen.entryPrice;
       if (!stopOk) continue;
 
-      const prior = bars[second.priorIndex]!;
+      const prior = bars[chosen.priorIndex]!;
       hits.push({
         bull,
-        priorIndex: second.priorIndex,
-        breakIndex: second.breakIndex,
-        entryPrice: second.entryPrice,
+        priorIndex: chosen.priorIndex,
+        breakIndex: chosen.breakIndex,
+        entryPrice: chosen.entryPrice,
         p1Index: protective.p1Index,
         p1Price: protective.p1Price,
         p2Index: protective.p2Index,
@@ -250,6 +281,16 @@ function pullbackWindows(legs: readonly SwingLeg[], bull: boolean): PullbackWind
     index = impulseIndex + 1;
   }
   return windows;
+}
+
+function resolveEntryCount(options?: SecondEntryFromPartsOptions): number {
+  const raw = options?.entryCount ?? 2;
+  if (!Number.isInteger(raw) || raw < 1) {
+    throw new TypeError(
+      "findSecondEntriesFrom: entryCount must be an integer >= 1",
+    );
+  }
+  return raw;
 }
 
 function resolveEntrySwingSpan(options?: SecondEntryFromPartsOptions): number {

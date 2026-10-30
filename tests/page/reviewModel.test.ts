@@ -9,6 +9,38 @@ import {
 import type { AnalysisResult } from "../../src/types/analysis.js";
 import type { Bar } from "../../src/types/bars.js";
 
+const T0 = 1_700_000_000;
+
+function abcBull(): Bar[] {
+  return [
+    bar(0, 50, 55, 48, 52),
+    bar(1, 52, 54, 40, 42),
+    bar(2, 22, 35, 20, 34),
+    bar(3, 34, 55, 33, 54),
+    bar(4, 54, 70, 53, 68),
+    bar(5, 66, 67, 58, 59),
+    bar(6, 59, 60, 50, 51),
+    bar(7, 51, 58, 50.5, 57),
+    bar(8, 57, 62, 56, 61),
+    bar(9, 60, 61, 54, 55),
+    bar(10, 55, 56, 52, 53),
+    bar(11, 54, 72, 53, 71),
+    bar(12, 71, 80, 70, 79),
+    bar(13, 79, 78, 74, 75),
+    bar(14, 75, 76, 73, 74),
+  ];
+}
+
+function bar(
+  index: number,
+  open: number,
+  high: number,
+  low: number,
+  close: number,
+): Bar {
+  return { time: T0 + index * 60, open, high, low, close };
+}
+
 const bars: Bar[] = [
   { time: 1_704_067_200, open: 1, high: 2, low: 0.5, close: 1.2 },
   { time: 1_704_070_800, open: 1.2, high: 1.5, low: 1, close: 1.1 },
@@ -137,6 +169,30 @@ describe("runReview", () => {
       "classifyTradingRange",
     ]);
     expect(analysis[0]?.confidence).toBe(1);
+  });
+
+  it("forwards entryCount only to second entry", () => {
+    const abc = abcBull();
+    const counted = runReview(
+      abc,
+      {
+        classifyIds: ["classifySecondEntry"],
+        measureIds: ["measureSecondEntry"],
+      },
+      { entryCount: 1 },
+    );
+    expect(counted.analysis[0]?.results[0]?.name).toBe("high1");
+    expect(counted.reports[0]?.trades[0]?.basis).toBe("high1");
+
+    const swingAt = (entryCount?: number) => {
+      const { analysis } = runReview(
+        abc,
+        { classifyIds: ["classifySwingTrend"] },
+        entryCount === undefined ? undefined : { entryCount },
+      );
+      return analysis[0]!.results.flatMap((item) => item.levels.map((level) => level.name));
+    };
+    expect(swingAt(1)).toEqual(swingAt());
   });
 
   it("returns swing trend and reversal signal when both are enabled", () => {

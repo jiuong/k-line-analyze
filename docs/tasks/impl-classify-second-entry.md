@@ -37,3 +37,4 @@
 - 突破 K 须落在冲刺所属同向 major 内；Stop 须在 Entry 反侧，否则不发单
 - Dual span：`majorSwingSpan` 默认 2（粗 major），`entrySwingSpan` 默认 1（细入场腿）；未闭合冲刺不吞后续窗；Linear [JIU-327](https://linear.app/jiuong/issue/JIU-327/se-dual-spanmajorspan2-entryspan1)
 - 回调打穿细腿 P1 则回退 Stop/P1（P2 保留原终点）；Linear [JIU-328](https://linear.app/jiuong/issue/JIU-328/se回调打穿细腿-p1-则回退-stopp1)
+- `entryCount`（整数 `>= 1`，默认 2）选择窗内第 N 次，标签 `highN`/`lowN`。Review 侧栏 `H/L` 输入只传给 Second Entry。SwingTrend 仍只挂 `H2`/`L2`。Linear [JIU-329](https://linear.app/jiuong/issue/JIU-329/second-entry入场序号开关-entrycount)

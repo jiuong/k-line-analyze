@@ -1,8 +1,15 @@
 import { createDefaultChartHost, type ChartHost } from "../src/chart/host.js";
 import { datetimeLocalToUnix } from "../src/page/queryTime.js";
-import { REVIEW_ANALYZERS, runReview } from "../src/page/reviewModel.js";
+import {
+  reviewSidebarItems,
+  runReview,
+  visibleReviewResults,
+  type ReviewSidebarItem,
+} from "../src/page/reviewModel.js";
+import { setupTradeRows } from "../src/page/setupTradesTable.js";
 import type { AnalysisResult } from "../src/types/analysis.js";
 import type { Bar, TimeFrame } from "../src/types/bars.js";
+import type { SetupReport } from "../src/utils/setupMeasure.js";
 
 type CatalogOption = { code: string; label: string };
 
@@ -27,6 +34,7 @@ const analyzersEl = document.querySelector<HTMLElement>("#analyzers");
 const outputEl = document.querySelector<HTMLElement>("#analysis-output");
 const canvas = document.querySelector<HTMLCanvasElement>("#chart");
 const chartHost = document.querySelector<HTMLElement>("#chart-host");
+const setupTradesEl = document.querySelector<HTMLElement>("#setup-trades");
 
 if (
   !form ||
@@ -40,7 +48,8 @@ if (
   !analyzersEl ||
   !outputEl ||
   !canvas ||
-  !chartHost
+  !chartHost ||
+  !setupTradesEl
 ) {
   throw new Error("Review page is missing required elements");
 }
@@ -48,16 +57,8 @@ if (
 const analyzerTitle = document.createElement("h2");
 analyzerTitle.textContent = "Analysis";
 analyzersEl.append(analyzerTitle);
-for (const analyzer of REVIEW_ANALYZERS) {
-  const label = document.createElement("label");
-  const box = document.createElement("input");
-  box.type = "checkbox";
-  box.dataset.analyzer = analyzer.id;
-  box.addEventListener("change", () => {
-    applyAnalysis();
-  });
-  label.append(box, document.createTextNode(analyzer.label));
-  analyzersEl.append(label);
+for (const item of reviewSidebarItems()) {
+  appendSidebarItem(analyzersEl, item);
 }
 
 const hostReady = createDefaultChartHost();
@@ -79,6 +80,73 @@ window.addEventListener("pagehide", () => {
 });
 
 void loadCatalog();
+
+function appendSidebarItem(parent: HTMLElement, item: ReviewSidebarItem): void {
+  const label = document.createElement("label");
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.dataset.analyzer = item.id;
+  box.dataset.kind = item.kind;
+  label.append(box, document.createTextNode(item.label));
+  parent.append(label);
+
+  if (item.id === "measureSecondEntry") {
+    appendEntryCountInput(parent);
+  }
+
+  if (item.id === "classifySwingTrend") {
+    appendDisplayToggle(parent, "minorTrends", "Small-cycle trends");
+    appendDisplayToggle(parent, "entryCounts", "Entry count");
+  }
+
+  box.addEventListener("change", () => {
+    applyAnalysis();
+  });
+}
+
+function appendEntryCountInput(parent: HTMLElement): void {
+  const label = document.createElement("label");
+  label.className = "subcheck";
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "1";
+  input.step = "1";
+  input.value = "2";
+  input.dataset.entryCount = "true";
+  input.setAttribute("aria-label", "H/L");
+  label.append(document.createTextNode("H/L"), input);
+  parent.append(label);
+  input.addEventListener("change", () => {
+    applyAnalysis();
+  });
+}
+
+function readEntryCount(): number {
+  const input = analyzersEl!.querySelector<HTMLInputElement>(
+    "input[data-entry-count]",
+  );
+  if (!input || input.value.trim() === "") return 2;
+  const raw = Number(input.value);
+  if (!Number.isInteger(raw) || raw < 1) return 2;
+  return raw;
+}
+
+function appendDisplayToggle(
+  parent: HTMLElement,
+  flag: "minorTrends" | "entryCounts",
+  text: string,
+): void {
+  const label = document.createElement("label");
+  label.className = "subcheck";
+  const box = document.createElement("input");
+  box.type = "checkbox";
+  box.dataset[flag] = "true";
+  label.append(box, document.createTextNode(text));
+  parent.append(label);
+  box.addEventListener("change", () => {
+    applyAnalysis();
+  });
+}
 
 async function loadCatalog(): Promise<void> {
   try {
@@ -167,7 +235,9 @@ async function loadWindow(): Promise<void> {
       loadedBars = [];
       host.setBars([], timeframe);
       host.setResults([]);
-      renderOutput(body, []);
+      host.setReports([]);
+      renderSetupTrades([]);
+      renderOutput(body, [], []);
       statusEl!.textContent = "No bars for this window.";
       return;
     }
@@ -181,32 +251,136 @@ async function loadWindow(): Promise<void> {
   }
 }
 
-function enabledAnalyzerIds(): string[] {
+function showMinorTrends(): boolean {
+  return subcheckOn("minor-trends");
+}
+
+function showEntryCounts(): boolean {
+  return subcheckOn("entry-counts");
+}
+
+function subcheckOn(flag: "minor-trends" | "entry-counts"): boolean {
   const boxes = analyzersEl!.querySelectorAll<HTMLInputElement>(
-    "input[data-analyzer]:checked",
+    `input[data-${flag}]:checked`,
   );
-  const ids: string[] = [];
+  return boxes.length > 0;
+}
+
+function enabledIdsByKind(kind: "classify" | "measure"): string[] {
+  const boxes = analyzersEl!.querySelectorAll<HTMLInputElement>(
+    `input[data-analyzer][data-kind="${kind}"]:checked`,
+  );
+  const ids = new Set<string>();
   boxes.forEach((box) => {
-    if (box.dataset.analyzer) {
-      ids.push(box.dataset.analyzer);
-    }
+    if (box.dataset.analyzer) ids.add(box.dataset.analyzer);
   });
-  return ids;
+  return [...ids];
 }
 
 function applyAnalysis(): void {
   if (!host || !loadedPayload || loadedBars.length === 0) {
     if (loadedPayload) {
-      renderOutput(loadedPayload, []);
+      renderSetupTrades([]);
+      renderOutput(loadedPayload, [], []);
     }
     return;
   }
-  const results = runReview(loadedBars, enabledAnalyzerIds());
-  host.setResults(results);
-  renderOutput(loadedPayload, results);
+  const { analysis, reports } = runReview(
+    loadedBars,
+    {
+      classifyIds: enabledIdsByKind("classify"),
+      measureIds: enabledIdsByKind("measure"),
+    },
+    { entryCount: readEntryCount() },
+  );
+  const visible = visibleReviewResults(
+    analysis,
+    showMinorTrends(),
+    showEntryCounts(),
+  );
+  host.setResults(visible);
+  host.setReports(reports);
+  renderSetupTrades(reports);
+  renderOutput(loadedPayload, visible, reports);
 }
 
-function renderOutput(payload: BarsPayload, results: AnalysisResult[]): void {
+function listedNames(result: AnalysisResult): string[] {
+  return result.results.map((item) => item.name);
+}
+
+function formatRate(value: number | null): string {
+  if (value === null) return "n/a";
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatRr(value: number | null): string {
+  if (value === null) return "n/a";
+  return value.toFixed(2);
+}
+
+function formatPrice(value: number): string {
+  return Number.isFinite(value) ? String(value) : "";
+}
+
+function renderSetupTrades(reports: SetupReport[]): void {
+  setupTradesEl!.replaceChildren();
+  const rows = setupTradeRows(reports);
+  if (rows.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty";
+    empty.textContent = "No measured setups";
+    setupTradesEl!.append(empty);
+    return;
+  }
+
+  const table = document.createElement("table");
+  const thead = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  for (const label of [
+    "Measure",
+    "Basis",
+    "Range",
+    "Entry",
+    "Stop",
+    "Target",
+    "Status",
+    "Plan RR",
+    "Max RR",
+  ]) {
+    const th = document.createElement("th");
+    th.textContent = label;
+    headRow.append(th);
+  }
+  thead.append(headRow);
+  const tbody = document.createElement("tbody");
+  for (const row of rows) {
+    const tr = document.createElement("tr");
+    for (const cell of [
+      row.measure,
+      row.basis,
+      row.range,
+      formatPrice(row.entry),
+      formatPrice(row.stop),
+      formatPrice(row.target),
+      row.status,
+      formatRr(row.planRr),
+      formatRr(row.maxRr),
+    ]) {
+      const td = document.createElement("td");
+      td.textContent = cell;
+      tr.append(td);
+    }
+    tbody.append(tr);
+  }
+  table.append(thead, tbody);
+  setupTradesEl!.append(table);
+}
+
+function renderOutput(
+  payload: BarsPayload,
+  results: AnalysisResult[],
+  reports: SetupReport[],
+): void {
   outputEl!.replaceChildren();
   const source = document.createElement("p");
   const degraded = payload.meta?.degraded ? " (degraded)" : "";
@@ -219,6 +393,28 @@ function renderOutput(payload: BarsPayload, results: AnalysisResult[]): void {
     outputEl!.append(note);
   }
 
+  for (const report of reports) {
+    const block = document.createElement("section");
+    const title = document.createElement("h2");
+    title.textContent = report.functionId;
+    const summary = document.createElement("p");
+    const { stats } = report;
+    summary.textContent = `count=${stats.count}; filled=${stats.filled}; wins=${stats.wins}; losses=${stats.losses}; open=${stats.open}; unfilled=${stats.unfilled}; winRate=${formatRate(stats.winRate)}; avgRR=${formatRr(stats.avgRewardRisk)}`;
+    block.append(title, summary);
+    const basisKeys = Object.keys(report.byBasis);
+    if (basisKeys.length > 0) {
+      const basis = document.createElement("p");
+      basis.textContent = basisKeys
+        .map((key) => {
+          const row = report.byBasis[key]!;
+          return `${key}: ${formatRate(row.winRate)} (${row.wins}/${row.wins + row.losses})`;
+        })
+        .join("; ");
+      block.append(basis);
+    }
+    outputEl!.append(block);
+  }
+
   for (const result of results) {
     const block = document.createElement("section");
     const title = document.createElement("h2");
@@ -226,7 +422,7 @@ function renderOutput(payload: BarsPayload, results: AnalysisResult[]): void {
     const summary = document.createElement("p");
     summary.textContent = result.summary;
     const names = document.createElement("p");
-    names.textContent = result.results.map((item) => item.name).join(", ");
+    names.textContent = listedNames(result).join(", ");
     block.append(title, summary, names);
     outputEl!.append(block);
   }

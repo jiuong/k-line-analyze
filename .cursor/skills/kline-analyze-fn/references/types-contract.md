@@ -278,4 +278,4 @@ Implemented in this batch: `high1`, `high2`, `high3`, `low1`, `low2`, `low3`, `b
 
 `Push1`, `Push2`, and `Push3` are in the type union. They are the wedge push extremes, earlier then later.
 
-Result labels `high1`–`high3` / `low1`–`low3` stay semantic; LevelNames `H1`–`H3` / `L1`–`L3` are the overlay entry anchors from the same `entryCounts` logic. Overlay may show `H1` for a `high1` `SignalBar`. `Top1` / `Top2` / `Bottom1` / `Bottom2` stay double-test anchors. `Neckline` is the counter-swing between those two same-side swings.
+Result labels `high1`–`high3` / `low1`–`low3` stay semantic. `classifySecondEntry` also emits `` `high${number}` `` / `` `low${number}` `` for `entryCount` beyond 3 (`high4`, `low4`, …). LevelNames `H1`–`H3` / `L1`–`L3` are the overlay entry anchors from `entryCounts` and from swing-trend `H2`/`L2` marks. Overlay shows `HN` for a `highN` `SignalBar` (including `H4`). `Top1` / `Top2` / `Bottom1` / `Bottom2` stay double-test anchors. `Neckline` is the counter-swing between those two same-side swings.

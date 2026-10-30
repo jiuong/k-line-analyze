@@ -381,6 +381,11 @@ export function reviewSidebarItems(
   ];
 }
 
+export type ReviewRunOptions = {
+  /** Forwarded only to Second Entry classify and measure. Default stays 2. */
+  entryCount?: number;
+};
+
 /** Run checked classify and measure functions. Ids are deduped by functionId. */
 export function runReview(
   bars: readonly Bar[],
@@ -388,14 +393,21 @@ export function runReview(
     classifyIds?: readonly string[];
     measureIds?: readonly string[];
   } = {},
+  options?: ReviewRunOptions,
 ): ReviewRunResult {
   const classifyEnabled = new Set(enabled.classifyIds ?? []);
   const measureEnabled = new Set(enabled.measureIds ?? []);
   const windowBars = [...bars];
+  const secondEntryOptions =
+    options?.entryCount === undefined ? undefined : { entryCount: options.entryCount };
 
   const analysis: AnalysisResult[] = [];
   for (const id of collectTreeIds(REVIEW_TREE, "classify")) {
     if (!classifyEnabled.has(id)) continue;
+    if (id === "classifySecondEntry") {
+      analysis.push(classifySecondEntry(windowBars, secondEntryOptions));
+      continue;
+    }
     const run = CLASSIFY_RUNNERS[id];
     if (run) analysis.push(run(windowBars));
   }
@@ -403,6 +415,10 @@ export function runReview(
   const reports: SetupReport[] = [];
   for (const id of collectTreeIds(REVIEW_TREE, "measure")) {
     if (!measureEnabled.has(id)) continue;
+    if (id === "measureSecondEntry") {
+      reports.push(measureSecondEntry(windowBars, secondEntryOptions));
+      continue;
+    }
     const run = MEASURE_RUNNERS[id];
     if (run) reports.push(run(windowBars));
   }

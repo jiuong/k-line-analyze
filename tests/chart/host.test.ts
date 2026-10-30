@@ -15,7 +15,7 @@ const analysis: AnalysisResult = {
     {
       name: "bull_trend",
       range: { start: "2024-01-01T00:00:00Z", end: "2024-01-01T01:00:00Z" },
-      levels: [{ name: "L1", price: 9, time: "2024-01-01T00:00:00Z" }],
+      levels: [{ name: "BullTrendStart", price: 9, time: "2024-01-01T00:00:00Z" }],
     },
   ],
   summary: "trends=1",
@@ -48,6 +48,7 @@ describe("createChartHost", () => {
     host.mount(canvas, { container: null });
     host.setBars(bars, "H1");
     host.setResults([analysis]);
+    host.setReports([]);
     host.setBars(bars, "H1");
 
     expect(chart.mount).toHaveBeenCalledWith(canvas, { container: null });
@@ -82,7 +83,7 @@ describe("createChartHost", () => {
       from: "2024-01-01T08:00:00+08:00",
       to: "2024-01-01T09:00:00+08:00",
     });
-    expect(chart.requestRedraw).toHaveBeenCalledTimes(1);
+    expect(chart.requestRedraw).toHaveBeenCalledTimes(2);
     expect(chart.setPlaybackStatus).not.toHaveBeenCalled();
     expect(chart.reset).not.toHaveBeenCalled();
 
